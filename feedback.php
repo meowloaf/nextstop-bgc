@@ -1,0 +1,127 @@
+<?php
+session_start();
+require_once "config/database.php";
+
+if (!isset($_SESSION['user_id'])) {
+    header("Location: index.php");
+    exit;
+}
+
+$message = $_SESSION['feedback_message'] ?? '';
+$error = $_SESSION['feedback_error'] ?? '';
+unset($_SESSION['feedback_message'], $_SESSION['feedback_error']);
+$communityFeedback = [];
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $rating = (int) ($_POST['rating'] ?? 0);
+    $comment = trim($_POST['comment'] ?? '');
+
+    if ($comment === '') {
+        $error = 'Please add a comment before sending feedback.';
+    } elseif ($rating < 1 || $rating > 5) {
+        $error = 'Please choose a rating from 1 to 5.';
+    }
+
+    if ($error === '') {
+        try {
+            $stmt = $pdo->prepare("INSERT INTO feedbacks (user_id, rating, comment) VALUES (?, ?, ?)");
+            $stmt->execute([$_SESSION['user_id'], $rating, $comment]);
+            $_SESSION['feedback_message'] = 'Thank you. Your feedback has been saved.';
+            header('Location: feedback.php');
+            exit;
+        } catch (PDOException $exception) {
+            $_SESSION['feedback_error'] = 'Feedback is not available until the database tables are imported.';
+            header('Location: feedback.php');
+            exit;
+        }
+    }
+
+    if ($error !== '') {
+        $_SESSION['feedback_error'] = $error;
+        header('Location: feedback.php');
+        exit;
+    }
+}
+
+$isAdmin = $_SESSION['role'] === 'admin';
+
+try {
+    $feedbackStmt = $pdo->query("SELECT feedbacks.rating, feedbacks.comment, feedbacks.created_at, users.username FROM feedbacks LEFT JOIN users ON users.id = feedbacks.user_id ORDER BY feedbacks.created_at DESC LIMIT 12");
+    $communityFeedback = $feedbackStmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $exception) {
+    $communityFeedback = [];
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NextStop - BGC</title>
+<link rel="icon" href="assets/2logo.png" type="image/png">
+<link rel="stylesheet" href="assets/css/style.css?v=<?php echo filemtime(__DIR__ . '/assets/css/style.css'); ?>">
+</head>
+<body>
+<header class="topbar">
+    <div class="topbar-brand"><img src="assets/1logo.png" alt="NextStop - BGC"></div>
+    <div class="topbar-user"><span><?php echo htmlspecialchars($_SESSION['username']); ?></span><a href="logout.php">Log out</a></div>
+</header>
+<div class="dashboard">
+    <aside class="sidebar">
+        <nav class="main-nav" aria-label="Main navigation">
+            <a class="nav-item" href="dashboard.php"><span class="nav-icon" aria-hidden="true">▦</span><span>Routes &amp; Map</span></a>
+            <a class="nav-item" href="bus-stops.php"><span class="nav-icon" aria-hidden="true">●</span><span>Bus Stops</span></a>
+            <a class="nav-item active" href="feedback.php"><span class="nav-icon" aria-hidden="true">✉</span><span>Feedback</span></a>
+            <a class="nav-item" href="history.php"><span class="nav-icon" aria-hidden="true">↺</span><span>History</span></a>
+            <?php if ($isAdmin): ?>
+                <a class="nav-item admin-nav-item" href="admin/dashboard.php"><span class="nav-icon" aria-hidden="true">⚙</span><span>Admin Panel</span></a>
+            <?php endif; ?>
+        </nav>
+    </aside>
+    <main class="content feedback-page">
+        <div class="page-heading">
+            <div><h1>Feedback</h1><p>Help us improve your bus experience.</p></div>
+        </div>
+        <div class="feedback-layout">
+            <section class="simple-card feedback-card">
+                <?php if ($message !== ''): ?><p class="form-success"><?php echo htmlspecialchars($message); ?></p><?php endif; ?>
+                <?php if ($error !== ''): ?><p class="form-error"><?php echo htmlspecialchars($error); ?></p><?php endif; ?>
+                <form method="POST">
+                    <fieldset class="star-rating-field">
+                        <legend>How was your trip? <b>*</b></legend>
+                        <div class="star-rating" aria-label="Choose a rating from 1 to 5 stars">
+                            <?php for ($star = 5; $star >= 1; $star--): ?>
+                                <input id="rating-<?php echo $star; ?>" type="radio" name="rating" value="<?php echo $star; ?>" required>
+                                <label for="rating-<?php echo $star; ?>" title="<?php echo $star; ?> stars">★</label>
+                            <?php endfor; ?>
+                        </div>
+                    </fieldset>
+                    <label for="comment">Comments</label>
+                    <textarea id="comment" name="comment" rows="6" placeholder="Tell us about your experience..." required></textarea>
+                    <button class="find-button" type="submit">Submit Feedback</button>
+                </form>
+            </section>
+            <section class="simple-card community-card">
+                <div class="community-heading">
+                    <div><h2>Community Feedbacks</h2><p>See what other riders are saying.</p></div>
+                    <button class="refresh-button" type="button" onclick="window.location.reload()">↻ Refresh</button>
+                </div>
+                <div class="feedback-grid">
+                    <?php if (!$communityFeedback): ?>
+                        <div class="empty-state"><strong>No feedback yet</strong><span>Be the first rider to share your experience.</span></div>
+                    <?php else: ?>
+                        <?php foreach ($communityFeedback as $feedback): ?>
+                            <article class="feedback-item" data-rating="<?php echo (int) $feedback['rating']; ?>">
+                                <div class="feedback-item-heading"><span class="feedback-avatar">▰</span><div><strong>Recent Feedback:</strong><small>User “<?php echo htmlspecialchars($feedback['username'] ?? 'Rider'); ?>” · <?php echo htmlspecialchars($feedback['created_at'] ?? ''); ?></small></div></div>
+                                <div class="feedback-rating" aria-label="<?php echo (int) $feedback['rating']; ?> out of 5 stars"><?php echo str_repeat('★', (int) $feedback['rating']); ?><span><?php echo str_repeat('★', 5 - (int) $feedback['rating']); ?></span></div>
+                                <p><?php echo htmlspecialchars($feedback['comment']); ?></p>
+                            </article>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
+            </section>
+        </div>
+    </main>
+</div>
+</body>
+</html>
