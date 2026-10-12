@@ -28,7 +28,11 @@ try {
          ON DUPLICATE KEY UPDATE is_online = VALUES(is_online)'
     );
     $stmt->execute([$routeId, $action === 'deploy' ? 1 : 0]);
-    $_SESSION['admin_message'] = $action === 'deploy' ? 'Route deployed and visible to riders.' : 'Route taken offline.';
+    if ($action === 'deploy') {
+        $_SESSION['admin_message'] = 'Route deployed and visible to riders.';
+    } else {
+        unset($_SESSION['admin_message']);
+    }
 } catch (PDOException $exception) {
     $_SESSION['admin_message'] = 'Route status could not be updated right now.';
 }

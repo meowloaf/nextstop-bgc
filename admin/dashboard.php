@@ -103,26 +103,17 @@ if ($feedbackRows) {
             <a class="nav-item" href="../bus-stops.php">⌖ <span>Bus Stops</span></a>
             <a class="nav-item" href="../feedback.php">◌ <span>Feedback</span></a>
             <a class="nav-item" href="../history.php">↶ <span>History</span></a>
-            <a class="nav-item active admin-nav-item" href="dashboard.php">⚙ <span>Admin Panel</span></a>
+            <a class="nav-item" href="dashboard.php">⚙ <span>Admin Panel</span></a>
         </nav>
     </aside>
 
     <main class="content simple-page admin-shell">
-        <div class="page-heading admin-page-heading">
-            <div>
-                <h1>Admin Dashboard</h1>
-                <p>Operate the BGC transport network and monitor rider experience.</p>
-            </div>
-        </div>
+        
 
         <section class="admin-hero" aria-label="Operations overview">
             <div>
-                <span class="admin-eyebrow">Operations center</span>
-                <h2>Keep service moving and riders informed.</h2>
-            </div>
-            <div class="admin-hero-meta" aria-label="Current status summary">
-                <span class="admin-pill admin-pill--live">Live</span>
-                <span>Network healthy</span>
+                <span class="admin-eyebrow">Operate the BGC transport network and monitor rider experience.</span>
+                <h2>Admin Dashboard</h2>
             </div>
         </section>
 
@@ -131,30 +122,9 @@ if ($feedbackRows) {
         <?php endif; ?>
 
         <section class="admin-grid" aria-label="Admin summary">
-            <div class="admin-stat">
-                <div class="admin-stat-label">Active Stops</div>
-                <strong><?php echo count($stopRows); ?></strong>
-                <small>Available route points</small>
-            </div>
-            <div class="admin-stat">
-                <div class="admin-stat-label">Total Rides</div>
-                <strong><?php echo $rideCount; ?></strong>
-                <small>Trips recorded</small>
-            </div>
-            <div class="admin-stat">
-                <div class="admin-stat-label">Users</div>
-                <strong><?php echo $userCount; ?></strong>
-                <small>Accounts in system</small>
-            </div>
-            <div class="admin-stat">
-                <div class="admin-stat-label">Avg. Rating</div>
-                <strong><?php echo number_format($averageRating, 1); ?></strong>
-                <small>Feedback score</small>
-            </div>
         </section>
 
-        <section class="admin-panels">
-            <div class="admin-panel">
+        <section class="admin-panel admin-panel--wide">
                 <div class="admin-panel-header">
                     <h3>Recent feedback</h3>
                     <span class="admin-chip">Last 8</span>
@@ -185,37 +155,6 @@ if ($feedbackRows) {
                         </table>
                     </div>
                 <?php endif; ?>
-            </div>
-
-            <div class="admin-panel">
-                <div class="admin-panel-header">
-                    <h3>System status</h3>
-                    <span class="admin-chip admin-chip--success">Healthy</span>
-                </div>
-                <div class="admin-rank">
-                    <div class="admin-rank-item">
-                        <div>
-                            <strong>Network</strong>
-                            <span>Live route grid</span>
-                        </div>
-                        <span class="admin-status active">Operational</span>
-                    </div>
-                    <div class="admin-rank-item">
-                        <div>
-                            <strong>Dispatch</strong>
-                            <span>Fleet monitoring</span>
-                        </div>
-                        <span class="admin-status active">Stable</span>
-                    </div>
-                    <div class="admin-rank-item">
-                        <div>
-                            <strong>Feedback</strong>
-                            <span>Passenger sentiment</span>
-                        </div>
-                        <span class="admin-status active">Healthy</span>
-                    </div>
-                </div>
-            </div>
         </section>
 
         <section class="admin-panel admin-panel--wide">
@@ -390,10 +329,6 @@ if ($feedbackRows) {
                 <div class="report-summary-card">
                     <span>Completed</span>
                     <strong><?php echo (int) $reportSummary['totals']['completed_rides']; ?></strong>
-                </div>
-                <div class="report-summary-card">
-                    <span>Cancelled</span>
-                    <strong><?php echo (int) $reportSummary['totals']['cancelled_rides']; ?></strong>
                 </div>
                 <div class="report-summary-card">
                     <span>New users</span>

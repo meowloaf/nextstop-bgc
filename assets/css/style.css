@@ -2051,7 +2051,7 @@ margin-bottom: 14px;
     justify-content: center;
     padding: 0.7rem 1rem;
     border-radius: 10px;
-    background: linear-gradient(135deg, #0f8f8c, #1f7af3);
+    background: #2c9d8a;
     color: #fff;
     text-decoration: none;
     font-weight: 700;
@@ -2061,7 +2061,7 @@ margin-bottom: 14px;
 .admin-export:hover,
 .admin-export:focus-visible {
     transform: translateY(-1px);
-    box-shadow: 0 10px 22px rgba(31, 122, 243, 0.28);
+    background: #258b7b;
 }
 
 .report-summary-grid {
@@ -2123,9 +2123,8 @@ margin-bottom: 14px;
     display: block;
     width: 100%;
     min-height: 12px;
-    background: linear-gradient(180deg, #53c6d9, #1b7ef3);
+    background: #2c9d8a;
     border-radius: 12px 12px 0 0;
-    box-shadow: 0 8px 18px rgba(27, 126, 243, 0.18);
 }
 
 .report-bar-group small {
