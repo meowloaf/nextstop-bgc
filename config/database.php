@@ -141,7 +141,7 @@ try {
         )"
     );
 
-    $routeIds = ['sm-north-bgc', 'ayala-bgc', 'guadalupe-bgc', 'bgc-loop', 'venice-bgc'];
+    $routeIds = ['east-express', 'north-route', 'west-route', 'arca-south-express', 'central-route', 'night-route', 'lrt-ayala-route'];
     $routeSeed = $pdo->prepare('INSERT IGNORE INTO route_operations (route_id, is_online) VALUES (?, 1)');
     foreach ($routeIds as $routeId) {
         $routeSeed->execute([$routeId]);
@@ -153,22 +153,44 @@ try {
     );
     $seedAdmin->execute([$adminHash]);
 
-    $busStops = $pdo->query('SELECT COUNT(*) FROM bus_stops')->fetchColumn();
-    if ((int) $busStops === 0) {
-        $pdo->exec(
-            "INSERT IGNORE INTO bus_stops (name, area, latitude, longitude) VALUES
-            ('SM North EDSA', 'Quezon City', 14.657093, 121.031318),
-            ('North Avenue / EDSA', 'Quezon City', 14.653200, 121.032100),
-            ('Ayala MRT / EDSA', 'Makati', 14.549198, 121.027902),
-            ('Guadalupe', 'Makati', 14.566600, 121.046200),
-            ('Market! Market!', 'BGC', 14.548873, 121.056361),
-            ('High Street', 'BGC', 14.550800, 121.054200),
-            ('The Fort', 'BGC', 14.552000, 121.050500),
-            ('Globe Tower', 'BGC', 14.554500, 121.051500),
-            ('32nd Street', 'BGC', 14.553500, 121.056000),
-            ('Venice Grand Canal', 'McKinley Hill', 14.533742, 121.051685)"
-        );
-    }
+    $pdo->exec(
+        "INSERT IGNORE INTO bus_stops (name, area, latitude, longitude) VALUES
+        ('EDSA Ayala', 'Makati', 14.54894167, 121.02767222),
+        ('Market! Market!', 'BGC', 14.5492886, 121.0559966),
+        ('HSBC', 'BGC', 14.5535091, 121.0485311),
+        ('Turf BGC', 'BGC', 14.5540884, 121.0519522),
+        ('Avida 34th', 'BGC', 14.5547163, 121.0540338),
+        ('Uptown Mall', 'BGC', 14.5563154, 121.0544068),
+        ('Uptown Parade', 'BGC', 14.5580384, 121.0543999),
+        ('The Globe Tower', 'BGC', 14.5528868, 121.0501066),
+        ('Arca South', 'Taguig', 14.50555556, 121.04411111),
+        ('NutriAsia', 'BGC', 14.5517828, 121.0512573),
+        ('The Fort', 'BGC', 14.5518, 121.0505),
+        ('One/NEO', 'BGC', 14.5497492, 121.0455238),
+        ('Bonifacio Stopover', 'BGC', 14.5546751, 121.0458416),
+        ('Crescent Park West', 'BGC', 14.5544405, 121.0438408),
+        ('Fort Victoria', 'BGC', 14.5471058, 121.0456866),
+        ('McKinley Parkway', 'BGC', 14.55158, 121.0558313),
+        ('Arya Residences', 'BGC', 14.5462322, 121.0482351),
+        ('The Finance Centre', 'BGC', 14.546628, 121.0500938),
+        ('One Parkade', 'BGC', 14.550067, 121.0495318),
+        ('University Parkway', 'BGC', 14.5541658, 121.0572816),
+        ('MECC', 'Makati (approximate)', 14.5538, 121.0245),
+        ('Makati Stock Exchange', 'Makati', 14.5557166, 121.0230533),
+        ('PBCOM', 'Makati', 14.5585501, 121.0193853),
+        ('RCBC', 'Makati', 14.5607615, 121.0163798),
+        ('The Columns', 'Makati', 14.5618494, 121.0162319),
+        ('Chino Roces', 'Makati', 14.5616346, 121.0109937),
+        ('Mayapis', 'Makati', 14.5635114, 121.005145),
+        ('LRT Buendia', 'Pasay', 14.5541275, 120.9971759),
+        ('Leveriza', 'Pasay', 14.558357, 120.993362),
+        ('Makati Mati', 'Makati (approximate)', 14.5593307, 121.0147968),
+        ('City Gate', 'Makati (approximate)', 14.5596055, 121.0154958),
+        ('Security Bank', 'Makati', 14.558617, 121.0187768),
+        ('SGV', 'Makati', 14.5555299, 121.0224672),
+        ('Glorietta', 'Makati', 14.55124, 121.02537),
+        ('One Ayala', 'Makati', 14.55047, 121.02793)"
+    );
 } catch (PDOException $e) {
     die("Database connection failed: " . $e->getMessage());
 }

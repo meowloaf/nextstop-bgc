@@ -63,11 +63,13 @@ try {
 }
 
 $routeLabels = [
-    'sm-north-bgc' => ['name' => 'SM North EDSA - BGC', 'code' => 'SMN-BGC'],
-    'ayala-bgc' => ['name' => 'Ayala - BGC', 'code' => 'AYL-BGC'],
-    'guadalupe-bgc' => ['name' => 'Guadalupe - BGC', 'code' => 'GDL-BGC'],
-    'bgc-loop' => ['name' => 'BGC Loop', 'code' => 'BGC-LOOP'],
-    'venice-bgc' => ['name' => 'Venice - BGC', 'code' => 'VEN-BGC'],
+    'east-express' => ['name' => 'East Express', 'code' => 'EX'],
+    'north-route' => ['name' => 'North Route', 'code' => 'NR'],
+    'west-route' => ['name' => 'West Route', 'code' => 'WR'],
+    'arca-south-express' => ['name' => 'Arca South Express', 'code' => 'AS'],
+    'central-route' => ['name' => 'Central Route', 'code' => 'CR'],
+    'night-route' => ['name' => 'Night Route', 'code' => 'NT'],
+    'lrt-ayala-route' => ['name' => 'LRT - Ayala Route', 'code' => 'LRT'],
 ];
 
 $averageRating = 0;

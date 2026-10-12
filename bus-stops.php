@@ -56,7 +56,7 @@ try {
     </aside>
     <main class="content simple-page">
         <div class="page-heading">
-            <div><h1>Bus Stops</h1><p>Stops currently available on the BGC route.</p></div>
+            <div><h1>Bus Stops</h1><p>Stops across the BGC, Makati, and Arca South routes.</p></div>
         </div>
         <section class="simple-card stop-list" aria-label="Bus stop list">
             <?php foreach ($stops as $stop): ?>

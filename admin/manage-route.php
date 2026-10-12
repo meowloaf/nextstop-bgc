@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $routeId = trim($_POST['route_id'] ?? '');
 $action = $_POST['action'] ?? '';
-$validRoutes = ['sm-north-bgc', 'ayala-bgc', 'guadalupe-bgc', 'bgc-loop', 'venice-bgc'];
+$validRoutes = ['east-express', 'north-route', 'west-route', 'arca-south-express', 'central-route', 'night-route', 'lrt-ayala-route'];
 
 if (!in_array($routeId, $validRoutes, true) || !in_array($action, ['deploy', 'offline'], true)) {
     $_SESSION['admin_message'] = 'That route action was not valid.';

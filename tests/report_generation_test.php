@@ -29,7 +29,7 @@ foreach (['affected_area', 'latitude', 'longitude', 'starts_at', 'ends_at'] as $
 }
 
 $routeIds = $pdo->query('SELECT route_id FROM route_operations')->fetchAll(PDO::FETCH_COLUMN);
-foreach (['sm-north-bgc', 'ayala-bgc', 'guadalupe-bgc', 'bgc-loop', 'venice-bgc'] as $routeId) {
+foreach (['east-express', 'north-route', 'west-route', 'arca-south-express', 'central-route', 'night-route', 'lrt-ayala-route'] as $routeId) {
     if (!in_array($routeId, $routeIds, true)) {
         throw new RuntimeException('Route operation seed missing: ' . $routeId);
     }

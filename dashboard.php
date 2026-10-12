@@ -226,6 +226,8 @@ $activeStops = array_values(array_filter(array_map(static fn($stop) => ((int) $s
                 <div id="trip-details" class="trip-details" hidden>
                     <div class="trip-detail-item"><span>BUS ETA</span><strong id="bus-eta">--</strong></div>
                     <div class="trip-detail-item"><span>NEAREST STOP</span><strong id="nearest-stop">--</strong></div>
+                    <section id="transfer-guidance" class="transfer-guidance" aria-live="polite" hidden></section>
+                    <section id="transfer-alternatives" class="transfer-alternatives" aria-label="Other nearby transfer options" hidden></section>
                     <div class="passing-stops"><span>STOPS ALONG THE WAY</span><ol id="passing-stop-list"></ol></div>
                     <button id="ride-action-button" class="ride-button" type="button" onclick="handleRideAction()">Bus is here!</button>
                 </div>
