@@ -1139,6 +1139,45 @@ line-height: 1.4;
 .trip-status.is-warning { color: #b45309; background: #fff7ed; border-radius: 8px; padding: 8px 10px; font-weight: 700; }
 .trip-status.is-complete { color: #15803d; font-weight: 700; }
 
+.fare-summary {
+margin: 0 0 12px;
+padding: 12px 14px;
+border: 1px solid #bfe8dc;
+border-radius: 8px;
+background: #f2fbf8;
+}
+
+.fare-summary[hidden] { display: none; }
+
+.fare-summary-heading {
+display: flex;
+align-items: center;
+justify-content: space-between;
+gap: 12px;
+color: #52706a;
+font-size: 10px;
+font-weight: 700;
+letter-spacing: .4px;
+}
+
+.fare-summary-heading strong {
+color: #167965;
+font-size: 20px;
+letter-spacing: 0;
+}
+
+.fare-summary p {
+margin: 5px 0 3px;
+color: #52645f;
+font-size: 11px;
+}
+
+.fare-summary small {
+color: #778985;
+font-size: 10px;
+line-height: 1.4;
+}
+
 .trip-details {
 padding: 14px 2px 8px;
 border-top: 1px solid #edf1f2;
@@ -1433,6 +1472,13 @@ color: #77868a;
 font-size: 9px;
 line-height: 1.35;
 text-align: right;
+}
+
+.route-card-fare {
+margin-top: 8px;
+color: #167965;
+font-size: 11px;
+font-weight: 700;
 }
 
 .route-line {

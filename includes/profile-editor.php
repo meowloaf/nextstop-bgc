@@ -66,7 +66,13 @@ function handleProfileUpdate(PDO $pdo, int $userId): array
     $profileStmt->execute([$userId]);
     $profile = $profileStmt->fetch(PDO::FETCH_ASSOC);
     if (!$profile) {
-        throw new RuntimeException('The signed-in account could not be found.');
+        unset($_SESSION['user_id'], $_SESSION['username'], $_SESSION['role']);
+        $_SESSION['login_error'] = 'Your account could not be found. Please sign in again.';
+        session_regenerate_id(true);
+        $scriptPath = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
+        $loginPath = str_contains($scriptPath, '/admin/') ? '../index.php' : 'index.php';
+        header('Location: ' . $loginPath);
+        exit;
     }
 
     $postedName = $_POST['profile_name'] ?? '';

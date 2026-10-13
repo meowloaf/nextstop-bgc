@@ -3,6 +3,9 @@ const activeStopNames = new Set((window.nextStopState?.activeStops?.length ? win
 const routeWarnings = Array.isArray(window.nextStopState?.alerts) ? window.nextStopState.alerts : [];
 const routeOperations = window.nextStopState?.routeOperations || {};
 const routeBuses = Array.isArray(window.nextStopState?.routeBuses) ? window.nextStopState.routeBuses : [];
+const fareType = ["student", "senior", "pwd"].includes(window.nextStopState?.fareType)
+    ? window.nextStopState.fareType
+    : "";
 let commuterMarker = null;
 let commuterAccuracyCircle = null;
 let manualPinMode = false;
@@ -66,6 +69,103 @@ const point = name => {
     const stop = stopByName(name);
     return stop ? [stop.lat, stop.lng] : [14.568, 121.042];
 };
+
+function routeStopSegment(route, startName, destinationName) {
+    if (!route) {
+        return [];
+    }
+
+    const startIndex = route.stops.indexOf(startName);
+    const destinationIndex = route.stops.indexOf(destinationName);
+    if (startIndex < 0 || destinationIndex < 0 || startIndex === destinationIndex) {
+        return [];
+    }
+
+    const direction = destinationIndex > startIndex ? 1 : -1;
+    const segment = [];
+    for (let index = startIndex; ; index += direction) {
+        segment.push(route.stops[index]);
+        if (index === destinationIndex) {
+            return segment;
+        }
+    }
+}
+
+function routeDistanceKm(route, startName, destinationName) {
+    const segment = routeStopSegment(route, startName, destinationName);
+    let distanceKm = 0;
+    const toRadians = degrees => degrees * Math.PI / 180;
+
+    for (let index = 0; index < segment.length - 1; index += 1) {
+        const first = stopByName(segment[index]);
+        const second = stopByName(segment[index + 1]);
+        if (!first || !second) {
+            continue;
+        }
+
+        const latitudeDifference = toRadians(second.lat - first.lat);
+        const longitudeDifference = toRadians(second.lng - first.lng);
+        const haversine = Math.sin(latitudeDifference / 2) ** 2 +
+            Math.cos(toRadians(first.lat)) * Math.cos(toRadians(second.lat)) *
+            Math.sin(longitudeDifference / 2) ** 2;
+        distanceKm += 6371 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+    }
+
+    return distanceKm;
+}
+
+function fareForDistance(distanceKm) {
+    const regularFare = 15 + Math.ceil(Math.max(0, distanceKm - 5)) * 2;
+    const discountedFare = fareType ? regularFare * 0.8 : regularFare;
+    return Math.round(discountedFare * 100) / 100;
+}
+
+function formatFare(amount) {
+    return new Intl.NumberFormat("en-PH", {
+        style: "currency",
+        currency: "PHP",
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2
+    }).format(amount);
+}
+
+function updateFare(startName, destinationName, transferPlan, matchingRoute) {
+    const fareSummary = document.getElementById("fare-summary");
+    const fareTotal = document.getElementById("fare-total");
+    const fareBreakdown = document.getElementById("fare-breakdown");
+    const fareNote = document.getElementById("fare-note");
+    if (!fareSummary || !fareTotal || !fareBreakdown || !fareNote) {
+        return;
+    }
+
+    let fares;
+    if (transferPlan) {
+        const firstRoute = routeDefinitions.find(route => route.id === transferPlan.firstRouteId);
+        const secondRoute = routeDefinitions.find(route => route.id === transferPlan.secondRouteId);
+        if (!firstRoute || !secondRoute) {
+            fareSummary.hidden = true;
+            return;
+        }
+        fares = [
+            { route: firstRoute, amount: fareForDistance(routeDistanceKm(firstRoute, startName, transferPlan.exitStop)) },
+            { route: secondRoute, amount: fareForDistance(routeDistanceKm(secondRoute, transferPlan.boardingStop, destinationName)) }
+        ];
+    } else if (matchingRoute && routeStopSegment(matchingRoute, startName, destinationName).length >= 2) {
+        fares = [{ route: matchingRoute, amount: fareForDistance(routeDistanceKm(matchingRoute, startName, destinationName)) }];
+    } else {
+        fareSummary.hidden = true;
+        return;
+    }
+
+    fareTotal.textContent = formatFare(fares.reduce((total, leg) => total + leg.amount, 0));
+    fareBreakdown.textContent = fares.length > 1
+        ? fares.map(leg => `${leg.route.name}: ${formatFare(leg.amount)}`).join(" + ")
+        : `${fares[0].route.name}: ${formatFare(fares[0].amount)}`;
+    fareNote.textContent = fareType
+        ? "Estimated using mapped stop distances. Includes a 20% fare discount for your account category."
+        : "Estimated using mapped stop distances: ₱15 for the first 5 km, then ₱2 per additional kilometer.";
+    fareSummary.hidden = false;
+}
 
 const routeDefinitions = [
     {
@@ -315,6 +415,7 @@ async function loadRoadGeometry(route) {
 
 const fromLocationInput = document.getElementById("from-location");
 const toLocationInput = document.getElementById("to-location");
+const fareSummary = document.getElementById("fare-summary");
 const stopSuggestions = document.getElementById("stop-suggestions");
 const tripStatus = document.getElementById("trip-status");
 const routeList = document.getElementById("route-list");
@@ -328,8 +429,6 @@ const transferAlternatives = document.getElementById("transfer-alternatives");
 const rideActionButton = document.getElementById("ride-action-button");
 const findButton = document.querySelector(".find-button");
 const liveStatusList = document.getElementById("live-status-list");
-let selectedStartIndex = 0;
-let selectedDestinationIndex = 1;
 let selectedRoute = null;
 let rideState = "waiting";
 let rideArrivalTimer = null;
@@ -339,6 +438,12 @@ let currentTransferOptions = [];
 let activeTransferLeg = 1;
 let transferWalkLine = null;
 let fleet = [];
+
+[fromLocationInput, toLocationInput].forEach(input => {
+    input.addEventListener("input", () => {
+        fareSummary.hidden = true;
+    });
+});
 
 const routeSchedules = {
     "east-express": { eta: 8, hours: "6 AM - 10 PM" },
@@ -460,10 +565,14 @@ function renderRoutes(routes, startName = null, destinationName = null) {
             ? `<div class="route-warning route-warning--transfer" role="status">${routeItem.transferLeg === 1 ? `Get off here: ${routeItem.transferStop}` : `Board the next bus at ${routeItem.transferStop}`}</div>`
             : "";
         const servesTrip = startName && destinationName &&
-            routeItem.stops.indexOf(startName) >= 0 &&
-            routeItem.stops.indexOf(destinationName) > routeItem.stops.indexOf(startName);
+            routeStopSegment(routeItem, startName, destinationName).length >= 2;
         const displayFrom = routeItem.transferLeg ? routeItem.from : (servesTrip ? startName : routeItem.from);
         const displayTo = routeItem.transferLeg ? routeItem.to : (servesTrip ? destinationName : routeItem.to);
+        const fareStart = routeItem.transferLeg ? routeItem.from : (servesTrip ? startName : null);
+        const fareDestination = routeItem.transferLeg ? routeItem.to : (servesTrip ? destinationName : null);
+        const cardFare = fareStart && fareDestination && routeStopSegment(routeItem, fareStart, fareDestination).length >= 2
+            ? fareForDistance(routeDistanceKm(routeItem, fareStart, fareDestination))
+            : null;
         card.innerHTML = `
             <div class="route-card-top">
                 <strong><i class="status-dot" style="background: ${routeItem.color}"></i> ${routeItem.name} <small>${routeItem.code}</small></strong>
@@ -475,6 +584,7 @@ function renderRoutes(routes, startName = null, destinationName = null) {
                 <span class="route-line" style="background: ${routeItem.color}"></span>
             </div>
             <div class="route-service-hours">${routeItem.schedule}</div>
+            ${cardFare === null ? "" : `<div class="route-card-fare">Estimated fare: ${formatFare(cardFare)}</div>`}
             ${routeItem.available === false && routeItem.status === "OFFLINE" ? '<div class="route-warning route-warning--offline" role="status">Buses are currently offline on this route</div>' : ""}
             ${routeNotice}
             ${transferNotice}
@@ -492,17 +602,13 @@ function renderRoutes(routes, startName = null, destinationName = null) {
 function rankRoutes(startName, destinationName) {
     return routeCatalog
         .map(route => {
+            const servesBoth = routeStopSegment(route, startName, destinationName).length >= 2;
             const startPosition = route.stops.indexOf(startName);
-            const destinationPosition = route.stops.indexOf(destinationName);
-            const servesBoth = startPosition >= 0 && destinationPosition >= 0 && destinationPosition > startPosition;
-            const servesBothEitherDirection = startPosition >= 0 && destinationPosition >= 0;
             const servesStart = startPosition >= 0;
             let score = 0;
 
             if (servesBoth) {
                 score += 100;
-            } else if (servesBothEitherDirection) {
-                score += 70;
             } else if (servesStart) {
                 score += 35;
             } else if (route.stops.includes(destinationName)) {
@@ -519,17 +625,18 @@ function rankRoutes(startName, destinationName) {
             return { route, score, servesBoth };
         })
         .sort((first, second) => second.score - first.score)
-        .map((item, index) => ({ ...item.route, recommended: index === 0 && item.route.available && item.score >= 35 }));
+        .map((item, index) => ({
+            ...item.route,
+            recommended: index === 0 && item.route.available && item.servesBoth
+        }));
 }
 
 function findTransferSuggestions(startName, destinationName) {
     const availableRoutes = routeCatalog.filter(route => route.available);
     const suggestions = new Map();
     const maximumWalkingDistanceMeters = 500;
-
     availableRoutes.forEach(firstRoute => {
-        const startPosition = firstRoute.stops.indexOf(startName);
-        if (startPosition < 0) {
+        if (!firstRoute.stops.includes(startName)) {
             return;
         }
 
@@ -538,20 +645,21 @@ function findTransferSuggestions(startName, destinationName) {
                 return;
             }
 
-            const destinationPosition = secondRoute.stops.indexOf(destinationName);
-            if (destinationPosition < 0) {
+            if (!secondRoute.stops.includes(destinationName)) {
                 return;
             }
 
-            firstRoute.stops.slice(startPosition + 1).forEach(exitStop => {
+            firstRoute.stops.filter(stop => stop !== startName).forEach(exitStop => {
+                const firstLeg = routeStopSegment(firstRoute, startName, exitStop);
                 const exitLocation = stopByName(exitStop);
-                if (!exitLocation) {
+                if (firstLeg.length < 2 || !exitLocation) {
                     return;
                 }
 
-                secondRoute.stops.slice(0, destinationPosition).forEach(boardingStop => {
+                secondRoute.stops.filter(stop => stop !== destinationName).forEach(boardingStop => {
+                    const secondLeg = routeStopSegment(secondRoute, boardingStop, destinationName);
                     const boardingLocation = stopByName(boardingStop);
-                    if (!boardingLocation) {
+                    if (secondLeg.length < 2 || !boardingLocation) {
                         return;
                     }
 
@@ -566,12 +674,8 @@ function findTransferSuggestions(startName, destinationName) {
                         exitStop,
                         boardingStop,
                         walkingDistanceMeters,
-                        rideSegments: firstRoute.stops.indexOf(exitStop) - startPosition +
-                            destinationPosition - secondRoute.stops.indexOf(boardingStop),
-                        score: walkingDistanceMeters + (
-                            firstRoute.stops.indexOf(exitStop) - startPosition +
-                            destinationPosition - secondRoute.stops.indexOf(boardingStop)
-                        ) * 250
+                        rideSegments: firstLeg.length + secondLeg.length - 2,
+                        score: walkingDistanceMeters + (firstLeg.length + secondLeg.length - 2) * 250
                     };
                     const key = `${suggestion.firstRouteId}|${suggestion.exitStop}|${suggestion.secondRouteId}|${suggestion.boardingStop}`;
                     suggestions.set(key, suggestion);
@@ -648,10 +752,8 @@ function selectRoute(routeItem, card) {
         return;
     }
 
-    const startPosition = routeItem.stops.indexOf(startName);
-    const destinationPosition = routeItem.stops.indexOf(destinationName);
-    if (startPosition < 0 || destinationPosition <= startPosition) {
-        tripStatus.textContent = `${routeItem.name} does not serve both selected stops in this direction. Your start and destination have not changed.`;
+    if (routeStopSegment(routeItem, startName, destinationName).length < 2) {
+        tripStatus.textContent = `${routeItem.name} does not serve both selected stops. Your start and destination have not changed.`;
         tripStatus.className = "trip-status is-warning";
         return;
     }
@@ -754,6 +856,7 @@ async function findRoutes() {
     }
 
     routeSearchRunning = true;
+    document.getElementById("fare-summary").hidden = true;
     findButton.disabled = true;
     findButton.textContent = "Finding...";
     tripStatus.textContent = "Finding the nearest stops...";
@@ -781,9 +884,7 @@ async function findRoutes() {
         const startName = startStop.name;
         const destinationName = destinationStop.name;
         const directRoute = routeCatalog.find(route => {
-            const startPosition = route.stops.indexOf(startName);
-            const destinationPosition = route.stops.indexOf(destinationName);
-            return route.available && startPosition >= 0 && destinationPosition > startPosition;
+            return route.available && routeStopSegment(route, startName, destinationName).length >= 2;
         });
         const transferSuggestions = directRoute ? [] : findTransferSuggestions(startName, destinationName);
         const transferSuggestion = transferSuggestions[0] || null;
@@ -1039,9 +1140,6 @@ function updateTrip(startName = resolveStop(fromLocationInput.value)?.name, dest
         return;
     }
 
-    selectedStartIndex = stops.findIndex(stop => stop.name === startName);
-    selectedDestinationIndex = stops.findIndex(stop => stop.name === destinationName);
-
     if (startName === destinationName) {
         tripStatus.textContent = "Choose a different destination stop.";
         tripStatus.className = "trip-status";
@@ -1056,19 +1154,16 @@ function updateTrip(startName = resolveStop(fromLocationInput.value)?.name, dest
         : startName;
     const matchingRoute = transferPlan
         ? routeDefinitions.find(route => route.id === (activeTransferLeg === 2 ? transferPlan.secondRouteId : transferPlan.firstRouteId))
-        : routeDefinitions.find(route => {
-            const startPosition = route.stops.indexOf(startName);
-            const destinationPosition = route.stops.indexOf(destinationName);
-            return startPosition >= 0 && destinationPosition > startPosition;
-        }) || routeDefinitions.find(route => route.stops.includes(startName));
-    selectedRoute = selectedRoute || matchingRoute;
-    const routeStops = matchingRoute?.stops || [startName, destinationName];
-    const startPosition = Math.max(routeStops.indexOf(legStartName), 0);
-    const destinationPosition = transferPlan
-        ? routeStops.indexOf(activeTransferLeg === 2 ? destinationName : transferPlan.exitStop)
-        : routeStops.indexOf(destinationName);
-    const lastStopPosition = destinationPosition >= startPosition ? destinationPosition : routeStops.length - 1;
-    const passingStops = routeStops.slice(startPosition, lastStopPosition + 1);
+        : (selectedRoute && routeStopSegment(selectedRoute, startName, destinationName).length >= 2
+            ? selectedRoute
+            : routeDefinitions.find(route => routeStopSegment(route, startName, destinationName).length >= 2)) ||
+            routeDefinitions.find(route => route.stops.includes(startName));
+    selectedRoute = matchingRoute || selectedRoute;
+    const legDestinationName = transferPlan && activeTransferLeg === 1
+        ? transferPlan.exitStop
+        : destinationName;
+    const passingStops = routeStopSegment(matchingRoute, legStartName, legDestinationName);
+    updateFare(startName, destinationName, transferPlan, matchingRoute);
     const firstTransferRoute = transferPlan
         ? routeCatalog.find(route => route.id === transferPlan.firstRouteId)
         : null;
@@ -1076,11 +1171,9 @@ function updateTrip(startName = resolveStop(fromLocationInput.value)?.name, dest
         ? routeCatalog.find(route => route.id === transferPlan.secondRouteId)
         : null;
     const transferRideSegments = transferPlan
-        ? Math.max(0, firstTransferRoute.stops.indexOf(transferPlan.exitStop) -
-            firstTransferRoute.stops.indexOf(startName)) +
-            Math.max(0, secondTransferRoute.stops.indexOf(destinationName) -
-            secondTransferRoute.stops.indexOf(transferPlan.boardingStop))
-        : Math.abs(selectedDestinationIndex - selectedStartIndex);
+        ? routeStopSegment(firstTransferRoute, startName, transferPlan.exitStop).length - 1 +
+            routeStopSegment(secondTransferRoute, transferPlan.boardingStop, destinationName).length - 1
+        : Math.max(0, passingStops.length - 1);
     const northRouteExtraMinutes = transferPlan
         ? (transferPlan.firstRouteId === "north-route" || transferPlan.secondRouteId === "north-route" ? 12 : 0)
         : (matchingRoute?.id === "north-route" ? 12 : 0);

@@ -137,6 +137,15 @@ unset($bus);
 
                 <p id="trip-status" class="trip-status" role="status">Choose a starting point and destination.</p>
 
+                <section id="fare-summary" class="fare-summary" aria-live="polite" hidden>
+                    <div class="fare-summary-heading">
+                        <span>ESTIMATED FARE</span>
+                        <strong id="fare-total"></strong>
+                    </div>
+                    <p id="fare-breakdown"></p>
+                    <small id="fare-note"></small>
+                </section>
+
                 <div id="trip-details" class="trip-details" hidden>
                     <div class="trip-detail-item"><span>BUS ETA</span><strong id="bus-eta">--</strong></div>
                     <div class="trip-detail-item"><span>NEAREST STOP</span><strong id="nearest-stop">--</strong></div>
@@ -165,10 +174,11 @@ window.nextStopState = {
     activeStops: <?php echo json_encode($activeStops, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>,
     alerts: <?php echo json_encode($alerts, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>,
     routeOperations: <?php echo json_encode($routeOperations, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>,
-    routeBuses: <?php echo json_encode($routeBuses, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>
+    routeBuses: <?php echo json_encode($routeBuses, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>,
+    fareType: <?php echo json_encode($profile['fare_type'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>
 };
 </script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="assets/js/bus-simulator.js"></script>
+<script src="assets/js/bus-simulator.js?v=<?php echo filemtime(__DIR__ . '/assets/js/bus-simulator.js'); ?>"></script>
 </body>
 </html>
