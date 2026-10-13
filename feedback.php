@@ -12,7 +12,7 @@ $error = $_SESSION['feedback_error'] ?? '';
 unset($_SESSION['feedback_message'], $_SESSION['feedback_error']);
 $communityFeedback = [];
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submit-feedback') {
     $rating = (int) ($_POST['rating'] ?? 0);
     $comment = trim($_POST['comment'] ?? '');
 
@@ -44,6 +44,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $isAdmin = $_SESSION['role'] === 'admin';
+require_once __DIR__ . '/includes/profile-editor.php';
+[$profile, $profileMessage, $profileError, $profileFormValues] = handleProfileUpdate($pdo, (int) $_SESSION['user_id']);
 
 try {
     $feedbackStmt = $pdo->query("SELECT feedbacks.rating, feedbacks.comment, feedbacks.created_at, users.username FROM feedbacks LEFT JOIN users ON users.id = feedbacks.user_id ORDER BY feedbacks.created_at DESC LIMIT 12");
@@ -64,7 +66,10 @@ try {
 <body>
 <header class="topbar">
     <div class="topbar-brand"><img src="assets/1logo.png" alt="NextStop - BGC"></div>
-    <div class="topbar-user"><span><?php echo htmlspecialchars($_SESSION['username']); ?></span><a href="logout.php">Log out</a></div>
+    <div class="topbar-user">
+        <?php renderProfileEditor($profile, '', $profileMessage, $profileError, $profileFormValues); ?>
+        <a href="logout.php">Log out</a>
+    </div>
 </header>
 <div class="dashboard">
     <aside class="sidebar">
@@ -87,6 +92,7 @@ try {
                 <?php if ($message !== ''): ?><p class="form-success"><?php echo htmlspecialchars($message); ?></p><?php endif; ?>
                 <?php if ($error !== ''): ?><p class="form-error"><?php echo htmlspecialchars($error); ?></p><?php endif; ?>
                 <form method="POST">
+                    <input type="hidden" name="action" value="submit-feedback">
                     <fieldset class="star-rating-field">
                         <legend>How was your trip? <b>*</b></legend>
                         <div class="star-rating" aria-label="Choose a rating from 1 to 5 stars">

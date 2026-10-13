@@ -25,13 +25,12 @@ try {
             emergency_contact_name VARCHAR(100) NULL,
             emergency_contact VARCHAR(100) NULL,
             emergency_contact_address VARCHAR(255) NULL,
-            profile_photo VARCHAR(255) NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         )"
     );
 
     $userColumns = $pdo->query("SHOW COLUMNS FROM users")->fetchAll(PDO::FETCH_COLUMN);
-    foreach (['email', 'google_id', 'fare_type', 'eligibility_proof', 'emergency_contact_name', 'emergency_contact', 'emergency_contact_address', 'profile_photo'] as $column) {
+    foreach (['email', 'google_id', 'fare_type', 'eligibility_proof', 'emergency_contact_name', 'emergency_contact', 'emergency_contact_address'] as $column) {
         if (!in_array($column, $userColumns, true)) {
             $after = match ($column) {
                 'email' => 'password',
@@ -41,7 +40,6 @@ try {
                 'emergency_contact_name' => 'eligibility_proof',
                 'emergency_contact' => 'emergency_contact_name',
                 'emergency_contact_address' => 'emergency_contact',
-                'profile_photo' => 'emergency_contact_address',
                 default => 'role'
             };
 
@@ -59,8 +57,6 @@ try {
                 $pdo->exec("ALTER TABLE users ADD COLUMN emergency_contact VARCHAR(100) NULL AFTER emergency_contact_name");
             } elseif ($column === 'emergency_contact_address') {
                 $pdo->exec("ALTER TABLE users ADD COLUMN emergency_contact_address VARCHAR(255) NULL AFTER emergency_contact");
-            } elseif ($column === 'profile_photo') {
-                $pdo->exec("ALTER TABLE users ADD COLUMN profile_photo VARCHAR(255) NULL AFTER emergency_contact_address");
             }
         }
     }

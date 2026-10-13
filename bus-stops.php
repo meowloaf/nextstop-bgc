@@ -7,6 +7,9 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
+require_once __DIR__ . '/includes/profile-editor.php';
+[$profile, $profileMessage, $profileError, $profileFormValues] = handleProfileUpdate($pdo, (int) $_SESSION['user_id']);
+
 $isAdmin = $_SESSION['role'] === 'admin';
 $stops = [];
 
@@ -40,17 +43,20 @@ try {
 <body>
 <header class="topbar">
     <div class="topbar-brand"><img src="assets/1logo.png" alt="NextStop - BGC"></div>
-    <div class="topbar-user"><span><?php echo htmlspecialchars($_SESSION['username']); ?></span><a href="logout.php">Log out</a></div>
+    <div class="topbar-user">
+        <?php renderProfileEditor($profile, '', $profileMessage, $profileError, $profileFormValues); ?>
+        <a href="logout.php">Log out</a>
+    </div>
 </header>
 <div class="dashboard">
     <aside class="sidebar">
         <nav class="main-nav" aria-label="Main navigation">
-            <a class="nav-item" href="dashboard.php">⌁ <span>Routes &amp; Map</span></a>
-            <a class="nav-item active" href="bus-stops.php">⌖ <span>Bus Stops</span></a>
-            <a class="nav-item" href="feedback.php">◌ <span>Feedback</span></a>
-            <a class="nav-item" href="history.php">↶ <span>History</span></a>
+            <a class="nav-item" href="dashboard.php"><span class="nav-icon" aria-hidden="true">▦</span><span>Routes &amp; Map</span></a>
+            <a class="nav-item active" href="bus-stops.php"><span class="nav-icon" aria-hidden="true">●</span><span>Bus Stops</span></a>
+            <a class="nav-item" href="feedback.php"><span class="nav-icon" aria-hidden="true">✉</span><span>Feedback</span></a>
+            <a class="nav-item" href="history.php"><span class="nav-icon" aria-hidden="true">↺</span><span>History</span></a>
             <?php if ($isAdmin): ?>
-                <a class="nav-item admin-nav-item" href="admin/dashboard.php">⚙ <span>Admin Panel</span></a>
+                <a class="nav-item admin-nav-item" href="admin/dashboard.php"><span class="nav-icon" aria-hidden="true">⚙</span><span>Admin Panel</span></a>
             <?php endif; ?>
         </nav>
     </aside>

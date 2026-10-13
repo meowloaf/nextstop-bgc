@@ -13,6 +13,9 @@ if (($_SESSION['role'] ?? '') !== 'admin') {
     exit;
 }
 
+require_once __DIR__ . '/../includes/profile-editor.php';
+[$adminProfile, $profileMessage, $profileError, $profileFormValues] = handleProfileUpdate($pdo, (int) $_SESSION['user_id']);
+
 $feedbackRows = [];
 $stopRows = [];
 $rideCount = 0;
@@ -97,18 +100,18 @@ if ($feedbackRows) {
         <img src="../assets/1logo.png" alt="NextStop - BGC">
     </div>
     <div class="topbar-user">
-        <span><?php echo htmlspecialchars($_SESSION['username']); ?></span>
+        <?php renderProfileEditor($adminProfile, '../', $profileMessage, $profileError, $profileFormValues); ?>
         <a href="../logout.php">Log out</a>
     </div>
 </header>
 <div class="dashboard">
     <aside class="sidebar">
         <nav class="main-nav" aria-label="Main navigation">
-            <a class="nav-item" href="../dashboard.php">⌁ <span>Routes &amp; Map</span></a>
-            <a class="nav-item" href="../bus-stops.php">⌖ <span>Bus Stops</span></a>
-            <a class="nav-item" href="../feedback.php">◌ <span>Feedback</span></a>
-            <a class="nav-item" href="../history.php">↶ <span>History</span></a>
-            <a class="nav-item" href="dashboard.php">⚙ <span>Admin Panel</span></a>
+            <a class="nav-item" href="../dashboard.php"><span class="nav-icon" aria-hidden="true">▦</span><span>Routes &amp; Map</span></a>
+            <a class="nav-item" href="../bus-stops.php"><span class="nav-icon" aria-hidden="true">●</span><span>Bus Stops</span></a>
+            <a class="nav-item" href="../feedback.php"><span class="nav-icon" aria-hidden="true">✉</span><span>Feedback</span></a>
+            <a class="nav-item" href="../history.php"><span class="nav-icon" aria-hidden="true">↺</span><span>History</span></a>
+            <a class="nav-item admin-nav-item" href="dashboard.php"><span class="nav-icon" aria-hidden="true">⚙</span><span>Admin Panel</span></a>
         </nav>
     </aside>
 

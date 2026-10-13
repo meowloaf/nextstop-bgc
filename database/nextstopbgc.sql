@@ -13,7 +13,6 @@ CREATE TABLE IF NOT EXISTS users (
 	emergency_contact_name VARCHAR(100) NULL,
 	emergency_contact VARCHAR(100) NULL,
 	emergency_contact_address VARCHAR(255) NULL,
-	profile_photo VARCHAR(255) NULL,
 	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
