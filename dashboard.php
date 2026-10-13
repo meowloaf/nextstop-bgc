@@ -254,6 +254,6 @@ window.nextStopState = {
 };
 </script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="assets/js/bus-simulator.js"></script>
+<script src="assets/js/bus-simulator.js?v=<?php echo filemtime(__DIR__ . '/assets/js/bus-simulator.js'); ?>"></script>
 </body>
 </html>

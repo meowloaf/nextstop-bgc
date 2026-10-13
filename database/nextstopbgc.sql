@@ -80,8 +80,10 @@ CREATE TABLE IF NOT EXISTS route_operations (
 );
 
 INSERT IGNORE INTO route_operations (route_id, is_online) VALUES
-('sm-north-bgc', 1),
-('ayala-bgc', 1),
-('guadalupe-bgc', 1),
-('bgc-loop', 1),
-('venice-bgc', 1);
+('east-express', 1),
+('north-route', 1),
+('west-route', 1),
+('arca-south-express', 1),
+('central-route', 1),
+('night-route', 1),
+('lrt-ayala-route', 1);
