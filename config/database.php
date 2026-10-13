@@ -141,6 +141,21 @@ try {
         )"
     );
 
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS route_buses (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            route_id VARCHAR(40) NOT NULL,
+            plate_number VARCHAR(20) NOT NULL UNIQUE,
+            is_online TINYINT(1) NOT NULL DEFAULT 1,
+            INDEX idx_route_buses_route (route_id)
+        )"
+    );
+
+    $routeBusColumns = $pdo->query("SHOW COLUMNS FROM route_buses")->fetchAll(PDO::FETCH_COLUMN);
+    if (!in_array('is_online', $routeBusColumns, true)) {
+        $pdo->exec("ALTER TABLE route_buses ADD is_online TINYINT(1) NOT NULL DEFAULT 1");
+    }
+
     $routeIds = ['east-express', 'north-route', 'west-route', 'arca-south-express', 'central-route', 'night-route', 'lrt-ayala-route'];
     $routeSeed = $pdo->prepare('INSERT IGNORE INTO route_operations (route_id, is_online) VALUES (?, 1)');
     foreach ($routeIds as $routeId) {

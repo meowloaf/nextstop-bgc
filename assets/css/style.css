@@ -2424,6 +2424,7 @@ gap: 12px;
 
 .admin-rank-item {
 display: flex;
+flex-wrap: wrap;
 justify-content: space-between;
 align-items: center;
 gap: 10px;
@@ -2452,6 +2453,7 @@ gap: 10px;
 
 .admin-toggle {
 display: flex;
+flex-wrap: wrap;
 justify-content: space-between;
 align-items: center;
 gap: 12px;
@@ -2479,6 +2481,90 @@ font-size: 11px;
 
 .admin-toggle form {
 margin: 0;
+}
+
+.route-bus-list {
+display: grid;
+flex-basis: 100%;
+gap: 7px;
+padding-top: 10px;
+border-top: 1px solid #edf2f4;
+}
+
+.route-bus,
+.route-bus-add {
+display: flex;
+align-items: center;
+gap: 8px;
+}
+
+.route-bus {
+justify-content: space-between;
+align-items: center;
+gap: 10px;
+color: #536168;
+font-size: 11px;
+}
+
+.route-bus > span strong {
+font-size: 11px;
+}
+
+.route-bus-actions {
+display: flex;
+flex-wrap: wrap;
+align-items: center;
+gap: 8px;
+}
+
+.route-bus-actions form {
+display: flex;
+}
+
+.route-bus-add button {
+min-height: 30px;
+padding: 6px 10px;
+border-radius: 7px;
+font-size: 10px;
+}
+
+.route-bus-actions button {
+min-height: 30px;
+padding: 6px 10px;
+border-radius: 7px;
+font-size: 10px;
+}
+
+.route-bus-actions .route-bus-remove-button {
+border: 1px solid #dce5e7;
+background: white;
+color: #526168;
+}
+
+.route-bus-actions .route-bus-status-button {
+background: #2c9d8a;
+color: white;
+}
+
+.route-bus-actions .route-bus-status-button.admin-toggle-button--inactive {
+background: #d94848;
+}
+
+.route-bus-add input {
+width: min(260px, 100%);
+min-height: 36px;
+padding: 7px 10px;
+border: 1px solid #dce5e7;
+border-radius: 7px;
+background: white;
+color: #526168;
+font: inherit;
+font-size: 11px;
+}
+
+.route-bus-add input:focus {
+border-color: #2c9d8a;
+outline: 2px solid rgba(44, 157, 138, 0.12);
 }
 
 .admin-toggle button {

@@ -79,6 +79,14 @@ CREATE TABLE IF NOT EXISTS route_operations (
 	updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS route_buses (
+	id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+	route_id VARCHAR(40) NOT NULL,
+	plate_number VARCHAR(20) NOT NULL UNIQUE,
+	is_online TINYINT(1) NOT NULL DEFAULT 1,
+	INDEX idx_route_buses_route (route_id)
+);
+
 INSERT IGNORE INTO route_operations (route_id, is_online) VALUES
 ('sm-north-bgc', 1),
 ('ayala-bgc', 1),
