@@ -85,6 +85,7 @@ $isAdmin = $_SESSION['role'] === 'admin';
 $stopRows = [];
 $alerts = [];
 $routeOperations = [];
+$routeBuses = [];
 
 try {
     $stopStmt = $pdo->query("SELECT name, is_active FROM bus_stops ORDER BY name ASC");
@@ -94,13 +95,22 @@ try {
     $alerts = $alertStmt->fetchAll(PDO::FETCH_ASSOC);
 
     $routeOperations = $pdo->query("SELECT route_id, is_online FROM route_operations")->fetchAll(PDO::FETCH_KEY_PAIR);
+    $routeBuses = $pdo->query("SELECT id, route_id, plate_number, is_online FROM route_buses ORDER BY id ASC")->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $exception) {
     $stopRows = [];
     $alerts = [];
     $routeOperations = [];
+    $routeBuses = [];
 }
 
 $activeStops = array_values(array_filter(array_map(static fn($stop) => ((int) $stop['is_active'] === 1) ? $stop['name'] : null, $stopRows)));
+$busNumbersByRoute = [];
+foreach ($routeBuses as &$bus) {
+    $routeId = $bus['route_id'];
+    $busNumbersByRoute[$routeId] = ($busNumbersByRoute[$routeId] ?? 0) + 1;
+    $bus['bus_number'] = $busNumbersByRoute[$routeId];
+}
+unset($bus);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -254,7 +264,8 @@ $activeStops = array_values(array_filter(array_map(static fn($stop) => ((int) $s
 window.nextStopState = {
     activeStops: <?php echo json_encode($activeStops, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>,
     alerts: <?php echo json_encode($alerts, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>,
-    routeOperations: <?php echo json_encode($routeOperations, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>
+    routeOperations: <?php echo json_encode($routeOperations, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>,
+    routeBuses: <?php echo json_encode($routeBuses, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>
 };
 </script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

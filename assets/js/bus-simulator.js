@@ -2,6 +2,7 @@ const map = L.map("map").setView([14.568, 121.042], 13);
 const activeStopNames = new Set((window.nextStopState?.activeStops?.length ? window.nextStopState.activeStops : []).map(name => String(name)));
 const routeWarnings = Array.isArray(window.nextStopState?.alerts) ? window.nextStopState.alerts : [];
 const routeOperations = window.nextStopState?.routeOperations || {};
+const routeBuses = Array.isArray(window.nextStopState?.routeBuses) ? window.nextStopState.routeBuses : [];
 let commuterMarker = null;
 let commuterAccuracyCircle = null;
 let manualPinMode = false;
@@ -299,7 +300,12 @@ async function loadRoadGeometry(route) {
         const roadPath = result.routes?.[0]?.geometry?.coordinates;
 
         if (roadPath?.length) {
-            route.path = roadPath.map(([lng, lat]) => [lat, lng]);
+            const sampleInterval = Math.max(1, Math.ceil((roadPath.length - 1) / 80));
+            const sampledRoadPath = roadPath.filter((_, index) => index % sampleInterval === 0);
+            if (sampledRoadPath[sampledRoadPath.length - 1] !== roadPath[roadPath.length - 1]) {
+                sampledRoadPath.push(roadPath[roadPath.length - 1]);
+            }
+            route.path = sampledRoadPath.map(([lng, lat]) => [lat, lng]);
             route.line.setLatLngs(route.path);
         }
     } catch (error) {
@@ -443,7 +449,8 @@ function renderRoutes(routes, startName = null, destinationName = null) {
 
     routes.forEach((routeItem, index) => {
         const card = document.createElement("article");
-        card.className = `route-card${index === 0 ? " selected" : ""}${routeItem.available === false ? " unavailable" : ""}`;
+        const hasSelectedStops = Boolean(startName && destinationName);
+        card.className = `route-card${index === 0 && hasSelectedStops ? " selected" : ""}${routeItem.available === false ? " unavailable" : ""}`;
         card.dataset.routeId = routeItem.id;
         card.style.setProperty("--route-color", routeItem.color);
         const routeNotice = routeItem.warning && routeItem.available !== false
@@ -624,8 +631,23 @@ function selectRoute(routeItem, card) {
         return;
     }
 
+    routeList.querySelectorAll(".route-card").forEach(item => item.classList.remove("selected"));
+    card.classList.add("selected");
+    currentTransferPlan = null;
+    currentTransferOptions = [];
+    activeTransferLeg = 1;
+    selectedRoute = routeDefinitions.find(route => route.id === routeItem.id) || null;
+    highlightRoute(selectedRoute);
+    zoomToRoute(selectedRoute);
+
     const startName = resolveStop(fromLocationInput.value)?.name;
     const destinationName = resolveStop(toLocationInput.value)?.name;
+    if (!startName || !destinationName) {
+        tripStatus.textContent = "Choose a starting point and destination before selecting a route.";
+        tripStatus.className = "trip-status";
+        return;
+    }
+
     const startPosition = routeItem.stops.indexOf(startName);
     const destinationPosition = routeItem.stops.indexOf(destinationName);
     if (startPosition < 0 || destinationPosition <= startPosition) {
@@ -634,16 +656,8 @@ function selectRoute(routeItem, card) {
         return;
     }
 
-    routeList.querySelectorAll(".route-card").forEach(item => item.classList.remove("selected"));
-    card.classList.add("selected");
-    currentTransferPlan = null;
-    currentTransferOptions = [];
-    activeTransferLeg = 1;
-    selectedRoute = routeDefinitions.find(route => route.id === routeItem.id) || null;
     highlightTripStops(startName, destinationName, null);
-    highlightRoute(selectedRoute);
     updateTrip(startName, destinationName);
-    zoomToRoute(selectedRoute);
 }
 
 function highlightRoute(route) {
@@ -905,12 +919,20 @@ const busIcon = L.divIcon({
     iconAnchor: [16, 16]
 });
 
-fleet = routeDefinitions.map((route, index) => {
-    const marker = L.marker(route.path[0], { icon: busIcon }).addTo(map);
-    marker.bindPopup(`<b>🚌 ${route.code}-${index + 1}</b><br>${route.name}<br>Stops at mapped stops and signals`);
-    marker.setOpacity(routeIsOnline(route) ? 1 : 0);
-    return { route, marker, position: 0, waitTicks: index % 2 };
-});
+fleet = routeBuses
+    .filter(bus => Number(bus.is_online) === 1)
+    .map(bus => {
+        const route = routeDefinitions.find(candidate => candidate.id === bus.route_id);
+        if (!route) {
+            return null;
+        }
+
+        const position = (Number(bus.bus_number) - 1) % route.path.length;
+        const marker = L.marker(route.path[position], { icon: busIcon }).addTo(map);
+        marker.bindPopup(`<b>🚌 Bus #${Number(bus.bus_number)}</b><br>Plate: ${bus.plate_number}<br>${route.name}`);
+        return { route, marker, position, waitTicks: Number(bus.bus_number) % 2 };
+    })
+    .filter(Boolean);
 
 renderLiveStatus();
 
@@ -948,7 +970,6 @@ function resetSimulation() {
         bus.position = 0;
         bus.waitTicks = 0;
         bus.marker.setLatLng(bus.route.path[0]);
-        bus.marker.setOpacity(routeIsOnline(bus.route) ? 1 : 0);
     });
 
     refreshRouteDisplays();
@@ -976,11 +997,6 @@ function isNear(first, second) {
 
 function moveFleet() {
     fleet.forEach(bus => {
-        if (!routeIsOnline(bus.route)) {
-            bus.marker.setOpacity(0);
-            return;
-        }
-        bus.marker.setOpacity(1);
         if (bus.waitTicks > 0) {
             bus.waitTicks -= 1;
             return;
