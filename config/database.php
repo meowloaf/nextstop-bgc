@@ -25,13 +25,12 @@ try {
             emergency_contact_name VARCHAR(100) NULL,
             emergency_contact VARCHAR(100) NULL,
             emergency_contact_address VARCHAR(255) NULL,
-            profile_photo VARCHAR(255) NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         )"
     );
 
     $userColumns = $pdo->query("SHOW COLUMNS FROM users")->fetchAll(PDO::FETCH_COLUMN);
-    foreach (['email', 'google_id', 'fare_type', 'eligibility_proof', 'emergency_contact_name', 'emergency_contact', 'emergency_contact_address', 'profile_photo'] as $column) {
+    foreach (['email', 'google_id', 'fare_type', 'eligibility_proof', 'emergency_contact_name', 'emergency_contact', 'emergency_contact_address'] as $column) {
         if (!in_array($column, $userColumns, true)) {
             $after = match ($column) {
                 'email' => 'password',
@@ -41,7 +40,6 @@ try {
                 'emergency_contact_name' => 'eligibility_proof',
                 'emergency_contact' => 'emergency_contact_name',
                 'emergency_contact_address' => 'emergency_contact',
-                'profile_photo' => 'emergency_contact_address',
                 default => 'role'
             };
 
@@ -59,8 +57,6 @@ try {
                 $pdo->exec("ALTER TABLE users ADD COLUMN emergency_contact VARCHAR(100) NULL AFTER emergency_contact_name");
             } elseif ($column === 'emergency_contact_address') {
                 $pdo->exec("ALTER TABLE users ADD COLUMN emergency_contact_address VARCHAR(255) NULL AFTER emergency_contact");
-            } elseif ($column === 'profile_photo') {
-                $pdo->exec("ALTER TABLE users ADD COLUMN profile_photo VARCHAR(255) NULL AFTER emergency_contact_address");
             }
         }
     }
@@ -133,6 +129,32 @@ try {
         )"
     );
 
+    $feedbackColumns = $pdo->query("SHOW COLUMNS FROM feedbacks")->fetchAll(PDO::FETCH_COLUMN);
+    if (!in_array('ride_id', $feedbackColumns, true)) {
+        $pdo->exec("ALTER TABLE feedbacks ADD ride_id INT NULL AFTER user_id");
+    }
+
+    $feedbackIndexes = $pdo->query("SHOW INDEX FROM feedbacks")->fetchAll(PDO::FETCH_ASSOC);
+    $hasRideFeedbackIndex = false;
+    foreach ($feedbackIndexes as $index) {
+        if ($index['Key_name'] === 'uq_feedback_ride') {
+            $hasRideFeedbackIndex = true;
+            break;
+        }
+    }
+    if (!$hasRideFeedbackIndex) {
+        $pdo->exec("ALTER TABLE feedbacks ADD UNIQUE INDEX uq_feedback_ride (ride_id)");
+    }
+
+    $feedbackCreateSql = $pdo->query("SHOW CREATE TABLE feedbacks")->fetch(PDO::FETCH_ASSOC);
+    if (!str_contains($feedbackCreateSql['Create Table'] ?? '', 'fk_feedback_ride')) {
+        $pdo->exec(
+            "ALTER TABLE feedbacks
+             ADD CONSTRAINT fk_feedback_ride
+             FOREIGN KEY (ride_id) REFERENCES ride_history(id) ON DELETE SET NULL"
+        );
+    }
+
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS route_operations (
             route_id VARCHAR(40) PRIMARY KEY,
@@ -140,6 +162,21 @@ try {
             updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         )"
     );
+
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS route_buses (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            route_id VARCHAR(40) NOT NULL,
+            plate_number VARCHAR(20) NOT NULL UNIQUE,
+            is_online TINYINT(1) NOT NULL DEFAULT 1,
+            INDEX idx_route_buses_route (route_id)
+        )"
+    );
+
+    $routeBusColumns = $pdo->query("SHOW COLUMNS FROM route_buses")->fetchAll(PDO::FETCH_COLUMN);
+    if (!in_array('is_online', $routeBusColumns, true)) {
+        $pdo->exec("ALTER TABLE route_buses ADD is_online TINYINT(1) NOT NULL DEFAULT 1");
+    }
 
     $routeIds = ['east-express', 'north-route', 'west-route', 'arca-south-express', 'central-route', 'night-route', 'lrt-ayala-route'];
     $routeSeed = $pdo->prepare('INSERT IGNORE INTO route_operations (route_id, is_online) VALUES (?, 1)');

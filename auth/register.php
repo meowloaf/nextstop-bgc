@@ -11,7 +11,7 @@ $username = trim($_POST['username'] ?? '');
 $email = trim($_POST['email'] ?? '');
 $password = $_POST['password'] ?? '';
 $confirmPassword = $_POST['confirm_password'] ?? '';
-$fareType = $_POST['fare_type'] ?? '';
+$fareType = $_POST['fare_type'] ?? 'regular';
 $proofPath = null;
 
 if ($username === '' || $password === '' || $confirmPassword === '') {
@@ -44,7 +44,7 @@ if ($password !== $confirmPassword) {
     exit;
 }
 
-if ($fareType !== '' && !in_array($fareType, ['student', 'senior', 'pwd'], true)) {
+if (!in_array($fareType, ['regular', 'student', 'senior', 'pwd'], true)) {
     $_SESSION['register_error'] = 'Please choose a valid fare type.';
     header("Location: ../register.php");
     exit;
@@ -88,7 +88,7 @@ $stmt->execute([
     $username,
     $email ?: null,
     password_hash($password, PASSWORD_DEFAULT),
-    $fareType ?: null,
+    $fareType,
     $proofPath
 ]);
 

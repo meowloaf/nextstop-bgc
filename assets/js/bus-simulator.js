@@ -2,6 +2,11 @@ const map = L.map("map").setView([14.568, 121.042], 13);
 const activeStopNames = new Set((window.nextStopState?.activeStops?.length ? window.nextStopState.activeStops : []).map(name => String(name)));
 const routeWarnings = Array.isArray(window.nextStopState?.alerts) ? window.nextStopState.alerts : [];
 const routeOperations = window.nextStopState?.routeOperations || {};
+const routeBuses = Array.isArray(window.nextStopState?.routeBuses) ? window.nextStopState.routeBuses : [];
+const fareType = ["regular", "student", "senior", "pwd"].includes(window.nextStopState?.fareType)
+    ? window.nextStopState.fareType
+    : "regular";
+const hasFareDiscount = ["student", "senior", "pwd"].includes(fareType);
 let commuterMarker = null;
 let commuterAccuracyCircle = null;
 let manualPinMode = false;
@@ -66,6 +71,107 @@ const point = name => {
     return stop ? [stop.lat, stop.lng] : [14.568, 121.042];
 };
 
+function routeStopSegment(route, startName, destinationName) {
+    if (!route) {
+        return [];
+    }
+
+    const startIndex = route.stops.indexOf(startName);
+    const destinationIndex = route.stops.indexOf(destinationName);
+    if (startIndex < 0 || destinationIndex < 0 || startIndex === destinationIndex) {
+        return [];
+    }
+
+    const direction = destinationIndex > startIndex ? 1 : -1;
+    const segment = [];
+    for (let index = startIndex; ; index += direction) {
+        segment.push(route.stops[index]);
+        if (index === destinationIndex) {
+            return segment;
+        }
+    }
+}
+
+function routeDistanceKm(route, startName, destinationName) {
+    const segment = routeStopSegment(route, startName, destinationName);
+    let distanceKm = 0;
+    const toRadians = degrees => degrees * Math.PI / 180;
+
+    for (let index = 0; index < segment.length - 1; index += 1) {
+        const first = stopByName(segment[index]);
+        const second = stopByName(segment[index + 1]);
+        if (!first || !second) {
+            continue;
+        }
+
+        const latitudeDifference = toRadians(second.lat - first.lat);
+        const longitudeDifference = toRadians(second.lng - first.lng);
+        const haversine = Math.sin(latitudeDifference / 2) ** 2 +
+            Math.cos(toRadians(first.lat)) * Math.cos(toRadians(second.lat)) *
+            Math.sin(longitudeDifference / 2) ** 2;
+        distanceKm += 6371 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+    }
+
+    return distanceKm;
+}
+
+function fareForDistance(distanceKm) {
+    const regularFare = 15 + Math.ceil(Math.max(0, distanceKm - 7)) * 2;
+    const discountedFare = hasFareDiscount ? regularFare * 0.8 : regularFare;
+    return Math.round(discountedFare * 100) / 100;
+}
+
+function formatFare(amount) {
+    return new Intl.NumberFormat("en-PH", {
+        style: "currency",
+        currency: "PHP",
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2
+    }).format(amount);
+}
+
+function updateFare(startName, destinationName, transferPlan, matchingRoute) {
+    const fareSummary = document.getElementById("fare-summary");
+    const fareTotal = document.getElementById("fare-total");
+    const fareBreakdown = document.getElementById("fare-breakdown");
+    const fareNote = document.getElementById("fare-note");
+    if (!fareSummary || !fareTotal || !fareBreakdown || !fareNote) {
+        return;
+    }
+
+    let fares;
+    if (transferPlan) {
+        fares = transferPlan.legs.map(leg => {
+            const route = routeDefinitions.find(candidate => candidate.id === leg.routeId);
+            if (!route || routeStopSegment(route, leg.from, leg.to).length < 2) {
+                return null;
+            }
+            return {
+                route,
+                amount: fareForDistance(routeDistanceKm(route, leg.from, leg.to))
+            };
+        });
+        if (fares.some(fare => fare === null)) {
+            fareSummary.hidden = true;
+            return;
+        }
+    } else if (matchingRoute && routeStopSegment(matchingRoute, startName, destinationName).length >= 2) {
+        fares = [{ route: matchingRoute, amount: fareForDistance(routeDistanceKm(matchingRoute, startName, destinationName)) }];
+    } else {
+        fareSummary.hidden = true;
+        return;
+    }
+
+    fareTotal.textContent = formatFare(fares.reduce((total, leg) => total + leg.amount, 0));
+    fareBreakdown.textContent = fares.length > 1
+        ? fares.map(leg => `${leg.route.name}: ${formatFare(leg.amount)}`).join(" + ")
+        : `${fares[0].route.name}: ${formatFare(fares[0].amount)}`;
+    fareNote.textContent = hasFareDiscount
+        ? "Each bus leg is charged separately: ₱15 covers the first 7 km, then ₱2 per additional kilometer, with a 20% discount for your account category."
+        : "Each bus leg is charged separately: ₱15 covers the first 7 km, then ₱2 per additional kilometer.";
+    fareSummary.hidden = false;
+}
+
 const routeDefinitions = [
     {
         id: "east-express",
@@ -127,27 +233,6 @@ const routeDefinitions = [
         pathStops: ["MECC", "Makati Stock Exchange", "PBCOM", "RCBC", "The Columns", "Chino Roces", "Mayapis", "LRT Buendia", "Leveriza", "LRT Buendia", "Mayapis", "Makati Mati", "City Gate", "Security Bank", "SGV", "Glorietta", "One Ayala"]
     }
 ];
-
-function getRouteSegment(route, startName, destinationName) {
-    if (!route) {
-        return null;
-    }
-
-    const startPosition = route.stops.indexOf(startName);
-    const destinationPosition = route.stops.indexOf(destinationName);
-    if (startPosition < 0 || destinationPosition < 0 || startPosition === destinationPosition) {
-        return null;
-    }
-
-    const direction = destinationPosition > startPosition ? 1 : -1;
-    const segment = [];
-    for (let position = startPosition; ; position += direction) {
-        segment.push(route.stops[position]);
-        if (position === destinationPosition) {
-            return segment;
-        }
-    }
-}
 
 const terminalStopNames = new Set(routeDefinitions.flatMap(route => route.terminals));
 
@@ -328,7 +413,12 @@ async function loadRoadGeometry(route) {
         const roadPath = result.routes?.[0]?.geometry?.coordinates;
 
         if (roadPath?.length) {
-            route.path = roadPath.map(([lng, lat]) => [lat, lng]);
+            const sampleInterval = Math.max(1, Math.ceil((roadPath.length - 1) / 80));
+            const sampledRoadPath = roadPath.filter((_, index) => index % sampleInterval === 0);
+            if (sampledRoadPath[sampledRoadPath.length - 1] !== roadPath[roadPath.length - 1]) {
+                sampledRoadPath.push(roadPath[roadPath.length - 1]);
+            }
+            route.path = sampledRoadPath.map(([lng, lat]) => [lat, lng]);
             route.line.setLatLngs(route.path);
         }
     } catch (error) {
@@ -338,6 +428,7 @@ async function loadRoadGeometry(route) {
 
 const fromLocationInput = document.getElementById("from-location");
 const toLocationInput = document.getElementById("to-location");
+const fareSummary = document.getElementById("fare-summary");
 const stopSuggestions = document.getElementById("stop-suggestions");
 const tripStatus = document.getElementById("trip-status");
 const routeList = document.getElementById("route-list");
@@ -349,10 +440,8 @@ const passingStopList = document.getElementById("passing-stop-list");
 const transferGuidance = document.getElementById("transfer-guidance");
 const transferAlternatives = document.getElementById("transfer-alternatives");
 const rideActionButton = document.getElementById("ride-action-button");
-const findButton = document.querySelector(".find-button");
+const findButton = document.getElementById("find-routes-button");
 const liveStatusList = document.getElementById("live-status-list");
-let selectedStartIndex = 0;
-let selectedDestinationIndex = 1;
 let selectedRoute = null;
 let rideState = "waiting";
 let rideArrivalTimer = null;
@@ -362,6 +451,12 @@ let currentTransferOptions = [];
 let activeTransferLeg = 1;
 let transferWalkLines = [];
 let fleet = [];
+
+[fromLocationInput, toLocationInput].forEach(input => {
+    input.addEventListener("input", () => {
+        fareSummary.hidden = true;
+    });
+});
 
 const routeSchedules = {
     "east-express": { eta: 8, hours: "6 AM - 10 PM" },
@@ -487,9 +582,14 @@ function renderRoutes(routes, startName = null, destinationName = null) {
             ? `<div class="route-warning route-warning--transfer" role="status">${routeItem.transferStop ? `Transfer after this leg: ${routeItem.transferStop}` : "Final bus leg"}</div>`
             : "";
         const servesTrip = startName && destinationName &&
-            getRouteSegment(routeItem, startName, destinationName)?.length > 1;
+            routeStopSegment(routeItem, startName, destinationName).length >= 2;
         const displayFrom = routeItem.transferLeg ? routeItem.from : (servesTrip ? startName : routeItem.from);
         const displayTo = routeItem.transferLeg ? routeItem.to : (servesTrip ? destinationName : routeItem.to);
+        const fareStart = routeItem.transferLeg ? routeItem.from : (servesTrip ? startName : null);
+        const fareDestination = routeItem.transferLeg ? routeItem.to : (servesTrip ? destinationName : null);
+        const cardFare = fareStart && fareDestination && routeStopSegment(routeItem, fareStart, fareDestination).length >= 2
+            ? fareForDistance(routeDistanceKm(routeItem, fareStart, fareDestination))
+            : null;
         card.innerHTML = `
             <div class="route-card-top">
                 <strong><i class="status-dot" style="background: ${routeItem.color}"></i> ${routeItem.name} <small>${routeItem.code}</small></strong>
@@ -501,6 +601,7 @@ function renderRoutes(routes, startName = null, destinationName = null) {
                 <span class="route-line" style="background: ${routeItem.color}"></span>
             </div>
             <div class="route-service-hours">${routeItem.schedule}</div>
+            ${cardFare === null ? "" : `<div class="route-card-fare">Estimated fare: ${formatFare(cardFare)}</div>`}
             ${routeItem.available === false && routeItem.status === "OFFLINE" ? '<div class="route-warning route-warning--offline" role="status">Buses are currently offline on this route</div>' : ""}
             ${routeNotice}
             ${transferNotice}
@@ -518,8 +619,8 @@ function renderRoutes(routes, startName = null, destinationName = null) {
 function rankRoutes(startName, destinationName) {
     return routeCatalog
         .map(route => {
+            const servesBoth = routeStopSegment(route, startName, destinationName).length >= 2;
             const startPosition = route.stops.indexOf(startName);
-            const servesBoth = getRouteSegment(route, startName, destinationName)?.length > 1;
             const servesStart = startPosition >= 0;
             let score = 0;
 
@@ -538,10 +639,13 @@ function rankRoutes(startName, destinationName) {
                 score -= 5;
             }
 
-            return { route, score };
+            return { route, score, servesBoth };
         })
         .sort((first, second) => second.score - first.score)
-        .map((item, index) => ({ ...item.route, recommended: index === 0 && item.route.available && item.score >= 35 }));
+        .map((item, index) => ({
+            ...item.route,
+            recommended: index === 0 && item.route.available && item.servesBoth
+        }));
 }
 
 function findTransferSuggestions(startName, destinationName) {
@@ -553,7 +657,7 @@ function findTransferSuggestions(startName, destinationName) {
     function recordSuggestion(legs, transfers) {
         const rideSegments = legs.reduce((total, leg) => {
             const route = availableRoutes.find(candidate => candidate.id === leg.routeId);
-            return total + getRouteSegment(route, leg.from, leg.to).length - 1;
+            return total + routeStopSegment(route, leg.from, leg.to).length - 1;
         }, 0);
         const walkingDistanceMeters = transfers.reduce((total, transfer) => total + transfer.walkingDistanceMeters, 0);
         const suggestion = {
@@ -578,12 +682,12 @@ function findTransferSuggestions(startName, destinationName) {
                 return;
             }
 
-            if (getRouteSegment(route, currentStop, destinationName)) {
+            if (routeStopSegment(route, currentStop, destinationName).length >= 2) {
                 recordSuggestion([...legs, { routeId: route.id, from: currentStop, to: destinationName }], transfers);
             }
 
             const reachableStops = route.stops.filter(stopName =>
-                getRouteSegment(route, currentStop, stopName)?.length > 1
+                routeStopSegment(route, currentStop, stopName).length >= 2
             );
             reachableStops.forEach(exitStop => {
                 const leg = { routeId: route.id, from: currentStop, to: exitStop };
@@ -692,8 +796,14 @@ function selectRoute(routeItem, card) {
 
     const startName = resolveStop(fromLocationInput.value)?.name;
     const destinationName = resolveStop(toLocationInput.value)?.name;
-    if (!getRouteSegment(routeItem, startName, destinationName)) {
-        tripStatus.textContent = `${routeItem.name} does not serve both selected stops in this direction. Your start and destination have not changed.`;
+    if (!startName || !destinationName) {
+        tripStatus.textContent = "Choose a starting point and destination before selecting a route.";
+        tripStatus.className = "trip-status";
+        return;
+    }
+
+    if (routeStopSegment(routeItem, startName, destinationName).length < 2) {
+        tripStatus.textContent = `${routeItem.name} does not serve both selected stops. Your start and destination have not changed.`;
         tripStatus.className = "trip-status is-warning";
         return;
     }
@@ -704,10 +814,11 @@ function selectRoute(routeItem, card) {
     currentTransferOptions = [];
     activeTransferLeg = 1;
     selectedRoute = routeDefinitions.find(route => route.id === routeItem.id) || null;
-    highlightTripStops(startName, destinationName, null);
     highlightRoute(selectedRoute);
-    updateTrip(startName, destinationName);
     zoomToRoute(selectedRoute);
+
+    highlightTripStops(startName, destinationName, null);
+    updateTrip(startName, destinationName);
 }
 
 function highlightRoute(route) {
@@ -804,6 +915,7 @@ async function findRoutes() {
     }
 
     routeSearchRunning = true;
+    document.getElementById("fare-summary").hidden = true;
     findButton.disabled = true;
     findButton.textContent = "Finding...";
     tripStatus.textContent = "Finding the nearest stops...";
@@ -831,7 +943,7 @@ async function findRoutes() {
         const startName = startStop.name;
         const destinationName = destinationStop.name;
         const directRoute = routeCatalog.find(route => {
-            return route.available && getRouteSegment(route, startName, destinationName)?.length > 1;
+            return route.available && routeStopSegment(route, startName, destinationName).length >= 2;
         });
         const transferSuggestions = directRoute ? [] : findTransferSuggestions(startName, destinationName);
         const transferSuggestion = transferSuggestions[0] || null;
@@ -967,12 +1079,20 @@ const busIcon = L.divIcon({
     iconAnchor: [16, 16]
 });
 
-fleet = routeDefinitions.map((route, index) => {
-    const marker = L.marker(route.path[0], { icon: busIcon }).addTo(map);
-    marker.bindPopup(`<b>🚌 ${route.code}-${index + 1}</b><br>${route.name}<br>Stops at mapped stops and signals`);
-    marker.setOpacity(routeIsOnline(route) ? 1 : 0);
-    return { route, marker, position: 0, waitTicks: index % 2 };
-});
+fleet = routeBuses
+    .filter(bus => Number(bus.is_online) === 1)
+    .map(bus => {
+        const route = routeDefinitions.find(candidate => candidate.id === bus.route_id);
+        if (!route) {
+            return null;
+        }
+
+        const position = (Number(bus.bus_number) - 1) % route.path.length;
+        const marker = L.marker(route.path[position], { icon: busIcon }).addTo(map);
+        marker.bindPopup(`<b>🚌 Bus #${Number(bus.bus_number)}</b><br>Plate: ${bus.plate_number}<br>${route.name}`);
+        return { route, marker, position, waitTicks: Number(bus.bus_number) % 2 };
+    })
+    .filter(Boolean);
 
 renderLiveStatus();
 
@@ -1010,7 +1130,6 @@ function resetSimulation() {
         bus.position = 0;
         bus.waitTicks = 0;
         bus.marker.setLatLng(bus.route.path[0]);
-        bus.marker.setOpacity(routeIsOnline(bus.route) ? 1 : 0);
     });
 
     refreshRouteDisplays();
@@ -1038,11 +1157,6 @@ function isNear(first, second) {
 
 function moveFleet() {
     fleet.forEach(bus => {
-        if (!routeIsOnline(bus.route)) {
-            bus.marker.setOpacity(0);
-            return;
-        }
-        bus.marker.setOpacity(1);
         if (bus.waitTicks > 0) {
             bus.waitTicks -= 1;
             return;
@@ -1085,9 +1199,6 @@ function updateTrip(startName = resolveStop(fromLocationInput.value)?.name, dest
         return;
     }
 
-    selectedStartIndex = stops.findIndex(stop => stop.name === startName);
-    selectedDestinationIndex = stops.findIndex(stop => stop.name === destinationName);
-
     if (startName === destinationName) {
         tripStatus.textContent = "Choose a different destination stop.";
         tripStatus.className = "trip-status";
@@ -1101,17 +1212,20 @@ function updateTrip(startName = resolveStop(fromLocationInput.value)?.name, dest
     const legStartName = activeLeg?.from || startName;
     const matchingRoute = transferPlan
         ? routeDefinitions.find(route => route.id === activeLeg?.routeId)
-        : routeDefinitions.find(route => getRouteSegment(route, startName, destinationName)) ||
+        : (selectedRoute && routeStopSegment(selectedRoute, startName, destinationName).length >= 2
+            ? selectedRoute
+            : routeDefinitions.find(route => routeStopSegment(route, startName, destinationName).length >= 2)) ||
             routeDefinitions.find(route => route.stops.includes(startName));
-    selectedRoute = selectedRoute || matchingRoute;
+    selectedRoute = matchingRoute || selectedRoute;
     const legDestinationName = activeLeg?.to || destinationName;
-    const passingStops = getRouteSegment(matchingRoute, legStartName, legDestinationName) || [legStartName, legDestinationName];
+    const passingStops = routeStopSegment(matchingRoute, legStartName, legDestinationName);
+    updateFare(startName, destinationName, transferPlan, matchingRoute);
     const transferRideSegments = transferPlan
         ? transferPlan.legs.reduce((total, leg) => {
             const route = routeCatalog.find(candidate => candidate.id === leg.routeId);
-            return total + Math.max(0, (getRouteSegment(route, leg.from, leg.to)?.length || 1) - 1);
+            return total + Math.max(0, routeStopSegment(route, leg.from, leg.to).length - 1);
         }, 0)
-        : Math.abs(selectedDestinationIndex - selectedStartIndex);
+        : Math.max(0, passingStops.length - 1);
     const northRouteExtraMinutes = transferPlan
         ? (transferPlan.legs.some(leg => leg.routeId === "north-route") ? 12 : 0)
         : (matchingRoute?.id === "north-route" ? 12 : 0);

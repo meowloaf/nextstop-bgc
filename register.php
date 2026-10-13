@@ -68,14 +68,14 @@ unset($_SESSION['register_error']);
                 <input type="password" id="confirm-password" name="confirm_password" placeholder="Confirm password" minlength="6" required>
 
                 <label for="fare-type">Fare type</label>
-                <select id="fare-type" name="fare_type">
-                    <option value="">Select fare type (optional)</option>
+                <select id="fare-type" name="fare_type" required>
+                    <option value="regular" selected>Regular</option>
                     <option value="student">Student</option>
                     <option value="senior">Senior Citizen</option>
                     <option value="pwd">PWD</option>
                 </select>
 
-                <label for="eligibility-proof">Eligibility proof</label>
+                <label for="eligibility-proof">Eligibility proof (for student, senior, or PWD discount)</label>
                 <input type="file" id="eligibility-proof" name="eligibility_proof" accept="image/jpeg,image/png,application/pdf">
 
                 <button type="submit">Create account</button>

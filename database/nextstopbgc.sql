@@ -13,7 +13,6 @@ CREATE TABLE IF NOT EXISTS users (
 	emergency_contact_name VARCHAR(100) NULL,
 	emergency_contact VARCHAR(100) NULL,
 	emergency_contact_address VARCHAR(255) NULL,
-	profile_photo VARCHAR(255) NULL,
 	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -52,16 +51,6 @@ INSERT IGNORE INTO bus_stops (name, area, latitude, longitude) VALUES
 ('32nd Street', 'BGC', 14.553500, 121.056000),
 ('Venice Grand Canal', 'McKinley Hill', 14.533742, 121.051685);
 
-CREATE TABLE IF NOT EXISTS feedbacks (
-	id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-	user_id INT NOT NULL,
-	rating TINYINT UNSIGNED NULL,
-	comment TEXT NOT NULL,
-	photo_path VARCHAR(255) NULL,
-	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	CONSTRAINT fk_feedback_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
 CREATE TABLE IF NOT EXISTS ride_history (
 	id INT AUTO_INCREMENT PRIMARY KEY,
 	user_id INT NOT NULL,
@@ -73,10 +62,31 @@ CREATE TABLE IF NOT EXISTS ride_history (
 	INDEX idx_ride_history_user (user_id)
 );
 
+CREATE TABLE IF NOT EXISTS feedbacks (
+	id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+	user_id INT NOT NULL,
+	ride_id INT NULL,
+	rating TINYINT UNSIGNED NULL,
+	comment TEXT NOT NULL,
+	photo_path VARCHAR(255) NULL,
+	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	UNIQUE KEY uq_feedback_ride (ride_id),
+	CONSTRAINT fk_feedback_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+	CONSTRAINT fk_feedback_ride FOREIGN KEY (ride_id) REFERENCES ride_history(id) ON DELETE SET NULL
+);
+
 CREATE TABLE IF NOT EXISTS route_operations (
 	route_id VARCHAR(40) PRIMARY KEY,
 	is_online TINYINT(1) NOT NULL DEFAULT 1,
 	updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS route_buses (
+	id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+	route_id VARCHAR(40) NOT NULL,
+	plate_number VARCHAR(20) NOT NULL UNIQUE,
+	is_online TINYINT(1) NOT NULL DEFAULT 1,
+	INDEX idx_route_buses_route (route_id)
 );
 
 INSERT IGNORE INTO route_operations (route_id, is_online) VALUES

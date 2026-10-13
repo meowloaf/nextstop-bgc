@@ -13,12 +13,15 @@ if (($_SESSION['role'] ?? '') !== 'admin') {
     exit;
 }
 
+require_once __DIR__ . '/../includes/profile-editor.php';
+[$adminProfile, $profileMessage, $profileError, $profileFormValues] = handleProfileUpdate($pdo, (int) $_SESSION['user_id']);
+
 $feedbackRows = [];
 $stopRows = [];
 $rideCount = 0;
 $userCount = 0;
 $notifications = [];
-$routeOperations = [];
+$routeBuses = [];
 $adminMessage = $_SESSION['admin_message'] ?? '';
 unset($_SESSION['admin_message']);
 $reportRange = $_GET['report_range'] ?? '30';
@@ -26,9 +29,11 @@ $reportSummary = buildAdminReportSummary($pdo, $reportRange);
 
 try {
     $feedbackStmt = $pdo->query(
-        "SELECT f.id, f.rating, f.comment, f.created_at, u.username
+        "SELECT f.id, f.rating, f.comment, f.created_at, u.username,
+                ride_history.start_stop, ride_history.destination_stop
          FROM feedbacks f
          JOIN users u ON u.id = f.user_id
+         LEFT JOIN ride_history ON ride_history.id = f.ride_id
          ORDER BY f.created_at DESC LIMIT 8"
     );
     $feedbackRows = $feedbackStmt->fetchAll(PDO::FETCH_ASSOC);
@@ -50,8 +55,8 @@ try {
     );
     $notifications = $notificationStmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $routeOperations = $pdo->query(
-        "SELECT route_id, is_online FROM route_operations ORDER BY route_id ASC"
+    $routeBuses = $pdo->query(
+        "SELECT id, route_id, plate_number, is_online FROM route_buses ORDER BY id ASC"
     )->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $exception) {
     $feedbackRows = [];
@@ -59,7 +64,12 @@ try {
     $rideCount = 0;
     $userCount = 0;
     $notifications = [];
-    $routeOperations = [];
+    $routeBuses = [];
+}
+
+$busesByRoute = [];
+foreach ($routeBuses as $bus) {
+    $busesByRoute[$bus['route_id']][] = $bus;
 }
 
 $routeLabels = [
@@ -88,22 +98,22 @@ if ($feedbackRows) {
 </head>
 <body>
 <header class="topbar">
-    <div class="topbar-brand">
-        <img src="../assets/1logo.png" alt="NextStop - BGC">
+    <div class="topbar-brand topbar-brand--wordmark" aria-label="Next Stop - BGC">
+        <span class="topbar-wordmark"><span>NEXT</span><span>STOP</span><small><span>-</span> <span class="topbar-wordmark-bgc">BGC</span></small></span>
     </div>
     <div class="topbar-user">
-        <span><?php echo htmlspecialchars($_SESSION['username']); ?></span>
+        <?php renderProfileEditor($adminProfile, '../', $profileMessage, $profileError, $profileFormValues); ?>
         <a href="../logout.php">Log out</a>
     </div>
 </header>
 <div class="dashboard">
     <aside class="sidebar">
         <nav class="main-nav" aria-label="Main navigation">
-            <a class="nav-item" href="../dashboard.php">⌁ <span>Routes &amp; Map</span></a>
-            <a class="nav-item" href="../bus-stops.php">⌖ <span>Bus Stops</span></a>
-            <a class="nav-item" href="../feedback.php">◌ <span>Feedback</span></a>
-            <a class="nav-item" href="../history.php">↶ <span>History</span></a>
-            <a class="nav-item" href="dashboard.php">⚙ <span>Admin Panel</span></a>
+            <a class="nav-item" href="../dashboard.php"><span class="nav-icon" aria-hidden="true">▦</span><span>Routes &amp; Map</span></a>
+            <a class="nav-item" href="../bus-stops.php"><span class="nav-icon" aria-hidden="true">●</span><span>Bus Stops</span></a>
+            <a class="nav-item" href="../feedback.php"><span class="nav-icon" aria-hidden="true">✉</span><span>Feedback</span></a>
+            <a class="nav-item" href="../history.php"><span class="nav-icon" aria-hidden="true">↺</span><span>History</span></a>
+            <a class="nav-item admin-nav-item" href="dashboard.php"><span class="nav-icon" aria-hidden="true">⚙</span><span>Admin Panel</span></a>
         </nav>
     </aside>
 
@@ -137,6 +147,7 @@ if ($feedbackRows) {
                             <thead>
                                 <tr>
                                     <th>User</th>
+                                    <th>Ride</th>
                                     <th>Rating</th>
                                     <th>Comment</th>
                                     <th>Time</th>
@@ -146,6 +157,7 @@ if ($feedbackRows) {
                                 <?php foreach ($feedbackRows as $row): ?>
                                     <tr>
                                         <td><?php echo htmlspecialchars($row['username']); ?></td>
+                                        <td><?php echo htmlspecialchars(!empty($row['start_stop']) && !empty($row['destination_stop']) ? $row['start_stop'] . ' → ' . $row['destination_stop'] : 'Ride unavailable'); ?></td>
                                         <td><?php echo htmlspecialchars((int) $row['rating']); ?>/5</td>
                                         <td><?php echo htmlspecialchars($row['comment']); ?></td>
                                         <td><?php echo htmlspecialchars(date('M d, Y', strtotime($row['created_at']))); ?></td>
@@ -241,26 +253,40 @@ if ($feedbackRows) {
             </div>
             <div class="admin-forms">
                 <?php foreach ($routeLabels as $routeId => $route): ?>
-                    <?php
-                    $isOnline = true;
-                    foreach ($routeOperations as $operation) {
-                        if ($operation['route_id'] === $routeId) {
-                            $isOnline = (int) $operation['is_online'] === 1;
-                            break;
-                        }
-                    }
-                    ?>
+                    <?php $routeBusList = $busesByRoute[$routeId] ?? []; ?>
                     <div class="admin-toggle">
                         <div>
                             <strong><?php echo htmlspecialchars($route['name']); ?></strong>
-                            <small><?php echo htmlspecialchars($route['code']); ?> · <?php echo $isOnline ? 'Buses deployed' : 'Route offline'; ?></small>
+                            <small><?php echo htmlspecialchars($route['code']); ?> · <?php echo count($routeBusList); ?> buses</small>
                         </div>
-                        <div class="admin-alert-actions">
-                            <span class="admin-status <?php echo $isOnline ? 'active' : 'inactive'; ?>"><?php echo $isOnline ? 'ONLINE' : 'OFFLINE'; ?></span>
-                            <form method="POST" action="manage-route.php">
+                        <div class="route-bus-list">
+                            <?php foreach ($routeBusList as $busIndex => $bus): ?>
+                                <?php $busIsOnline = (int) $bus['is_online'] === 1; ?>
+                                <div class="route-bus">
+                                    <span><strong>Bus #<?php echo $busIndex + 1; ?></strong> · <?php echo htmlspecialchars($bus['plate_number']); ?></span>
+                                    <div class="route-bus-actions">
+                                        <span class="admin-status <?php echo $busIsOnline ? 'active' : 'inactive'; ?>"><?php echo $busIsOnline ? 'ONLINE' : 'OFFLINE'; ?></span>
+                                        <form method="POST" action="manage-bus.php">
+                                            <input type="hidden" name="action" value="<?php echo $busIsOnline ? 'offline' : 'deploy'; ?>">
+                                            <input type="hidden" name="bus_id" value="<?php echo (int) $bus['id']; ?>">
+                                            <input type="hidden" name="route_id" value="<?php echo htmlspecialchars($routeId); ?>">
+                                            <button class="route-bus-status-button <?php echo $busIsOnline ? 'admin-toggle-button--inactive' : ''; ?>" type="submit"><?php echo $busIsOnline ? 'Take offline' : 'Deploy'; ?></button>
+                                        </form>
+                                        <form method="POST" action="manage-bus.php">
+                                            <input type="hidden" name="action" value="remove">
+                                            <input type="hidden" name="bus_id" value="<?php echo (int) $bus['id']; ?>">
+                                            <input type="hidden" name="route_id" value="<?php echo htmlspecialchars($routeId); ?>">
+                                            <button class="route-bus-remove-button" type="submit" aria-label="Remove bus <?php echo htmlspecialchars($bus['plate_number']); ?> from <?php echo htmlspecialchars($route['name']); ?>">Remove</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                            <form class="route-bus-add" method="POST" action="manage-bus.php">
+                                <input type="hidden" name="action" value="add">
                                 <input type="hidden" name="route_id" value="<?php echo htmlspecialchars($routeId); ?>">
-                                <input type="hidden" name="action" value="<?php echo $isOnline ? 'offline' : 'deploy'; ?>">
-                                <button class="<?php echo $isOnline ? 'admin-toggle-button--inactive' : ''; ?>" type="submit"><?php echo $isOnline ? 'Take offline' : 'Deploy buses'; ?></button>
+                                <label class="sr-only" for="plate-<?php echo htmlspecialchars($routeId); ?>">Bus plate number for <?php echo htmlspecialchars($route['name']); ?></label>
+                                <input id="plate-<?php echo htmlspecialchars($routeId); ?>" name="plate_number" type="text" maxlength="20" pattern="[A-Za-z0-9 -]{2,20}" placeholder="Bus plate number" required>
+                                <button type="submit">Add bus</button>
                             </form>
                         </div>
                     </div>
@@ -385,5 +411,30 @@ if ($feedbackRows) {
         </section>
     </main>
 </div>
+<script>
+const adminScrollStorageKey = "admin-dashboard-scroll-position";
+
+document.querySelectorAll('form[method="POST"]').forEach(form => {
+    form.addEventListener("submit", () => {
+        sessionStorage.setItem(adminScrollStorageKey, JSON.stringify({
+            x: window.scrollX,
+            y: window.scrollY
+        }));
+    });
+});
+
+window.addEventListener("pageshow", () => {
+    const savedPosition = sessionStorage.getItem(adminScrollStorageKey);
+    if (!savedPosition) {
+        return;
+    }
+
+    sessionStorage.removeItem(adminScrollStorageKey);
+    const position = JSON.parse(savedPosition);
+    if (Number.isFinite(position.x) && Number.isFinite(position.y)) {
+        requestAnimationFrame(() => window.scrollTo(position.x, position.y));
+    }
+});
+</script>
 </body>
 </html>
