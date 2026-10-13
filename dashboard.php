@@ -124,17 +124,6 @@ $activeStops = array_values(array_filter(array_map(static fn($stop) => ((int) $s
     </div>
 </header>
 
-<?php if ($alerts): ?>
-    <div class="system-alerts" aria-live="polite">
-        <?php foreach ($alerts as $alert): ?>
-            <div class="system-alert system-alert--<?php echo htmlspecialchars($alert['severity'] ?? 'warning'); ?>" role="alert">
-                <strong><?php echo htmlspecialchars($alert['title']); ?></strong>
-                <span><?php echo htmlspecialchars($alert['message']); ?></span>
-            </div>
-        <?php endforeach; ?>
-    </div>
-<?php endif; ?>
-
 <div class="dashboard">
     <aside class="sidebar">
         <nav class="main-nav" aria-label="Main navigation">
@@ -220,6 +209,21 @@ $activeStops = array_values(array_filter(array_map(static fn($stop) => ((int) $s
                     <datalist id="stop-suggestions"></datalist>
                     <button class="find-button" type="button" onclick="findRoutes()">Find Routes</button>
                 </div>
+
+                <?php if ($alerts): ?>
+                    <section class="system-alerts" aria-label="Active road notices" aria-live="polite">
+                        <h2 class="system-alerts-heading">ROAD NOTICES</h2>
+                        <?php foreach ($alerts as $alert): ?>
+                            <div class="system-alert system-alert--<?php echo htmlspecialchars($alert['severity'] ?? 'warning'); ?>" role="alert">
+                                <strong><?php echo htmlspecialchars($alert['title']); ?></strong>
+                                <span><?php echo htmlspecialchars($alert['message']); ?></span>
+                                <?php if (!empty($alert['affected_area'])): ?>
+                                    <span class="system-alert-area">Affected area: <?php echo htmlspecialchars($alert['affected_area']); ?></span>
+                                <?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+                    </section>
+                <?php endif; ?>
 
                 <p id="trip-status" class="trip-status" role="status">Choose a starting point and destination.</p>
 

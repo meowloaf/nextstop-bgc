@@ -385,5 +385,30 @@ if ($feedbackRows) {
         </section>
     </main>
 </div>
+<script>
+const adminScrollStorageKey = "admin-dashboard-scroll-position";
+
+document.querySelectorAll('form[method="POST"]').forEach(form => {
+    form.addEventListener("submit", () => {
+        sessionStorage.setItem(adminScrollStorageKey, JSON.stringify({
+            x: window.scrollX,
+            y: window.scrollY
+        }));
+    });
+});
+
+window.addEventListener("pageshow", () => {
+    const savedPosition = sessionStorage.getItem(adminScrollStorageKey);
+    if (!savedPosition) {
+        return;
+    }
+
+    sessionStorage.removeItem(adminScrollStorageKey);
+    const position = JSON.parse(savedPosition);
+    if (Number.isFinite(position.x) && Number.isFinite(position.y)) {
+        requestAnimationFrame(() => window.scrollTo(position.x, position.y));
+    }
+});
+</script>
 </body>
 </html>
