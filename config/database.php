@@ -123,6 +123,15 @@ try {
         }
     }
 
+    $notificationIndexes = $pdo->query("SHOW INDEX FROM road_notifications")->fetchAll(PDO::FETCH_ASSOC);
+    $notificationIndexNames = array_column($notificationIndexes, 'Key_name');
+    if (!in_array('idx_notifications_created', $notificationIndexNames, true)) {
+        $pdo->exec("ALTER TABLE road_notifications ADD INDEX idx_notifications_created (created_at)");
+    }
+    if (!in_array('idx_notifications_active_created', $notificationIndexNames, true)) {
+        $pdo->exec("ALTER TABLE road_notifications ADD INDEX idx_notifications_active_created (is_active, created_at)");
+    }
+
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS feedbacks (
             id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -130,6 +139,7 @@ try {
             rating TINYINT UNSIGNED NULL,
             comment TEXT NOT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_feedbacks_created_at (created_at),
             CONSTRAINT fk_feedback_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )"
     );
@@ -143,9 +153,44 @@ try {
             status VARCHAR(20) NOT NULL DEFAULT 'completed',
             started_at DATETIME NULL,
             completed_at DATETIME NULL,
-            INDEX idx_ride_history_user (user_id)
+            INDEX idx_ride_history_user_started (user_id, started_at),
+            INDEX idx_ride_history_user_status (user_id, status),
+            CONSTRAINT fk_ride_history_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )"
     );
+
+    $rideHistoryIndexes = $pdo->query("SHOW INDEX FROM ride_history")->fetchAll(PDO::FETCH_ASSOC);
+    $rideHistoryIndexNames = array_column($rideHistoryIndexes, 'Key_name');
+    if (!in_array('idx_ride_history_user_started', $rideHistoryIndexNames, true)) {
+        $pdo->exec("ALTER TABLE ride_history ADD INDEX idx_ride_history_user_started (user_id, started_at)");
+    }
+    if (!in_array('idx_ride_history_user_status', $rideHistoryIndexNames, true)) {
+        $pdo->exec("ALTER TABLE ride_history ADD INDEX idx_ride_history_user_status (user_id, status)");
+    }
+    if (in_array('idx_ride_history_user', $rideHistoryIndexNames, true)) {
+        $pdo->exec("ALTER TABLE ride_history DROP INDEX idx_ride_history_user");
+    }
+
+    $rideHistoryCreateSql = $pdo->query("SHOW CREATE TABLE ride_history")->fetch(PDO::FETCH_ASSOC);
+    if (!str_contains($rideHistoryCreateSql['Create Table'] ?? '', 'fk_ride_history_user')) {
+        $orphanRideCount = (int) $pdo->query(
+            "SELECT COUNT(*)
+             FROM ride_history
+             LEFT JOIN users ON users.id = ride_history.user_id
+             WHERE users.id IS NULL"
+        )->fetchColumn();
+        if ($orphanRideCount > 0) {
+            throw new RuntimeException(
+                "Cannot add ride_history.user_id foreign key: {$orphanRideCount} ride(s) reference missing users."
+            );
+        }
+
+        $pdo->exec(
+            "ALTER TABLE ride_history
+             ADD CONSTRAINT fk_ride_history_user
+             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
+        );
+    }
 
     $feedbackColumns = $pdo->query("SHOW COLUMNS FROM feedbacks")->fetchAll(PDO::FETCH_COLUMN);
     if (!in_array('ride_id', $feedbackColumns, true)) {
@@ -153,6 +198,10 @@ try {
     }
 
     $feedbackIndexes = $pdo->query("SHOW INDEX FROM feedbacks")->fetchAll(PDO::FETCH_ASSOC);
+    $feedbackIndexNames = array_column($feedbackIndexes, 'Key_name');
+    if (!in_array('idx_feedbacks_created_at', $feedbackIndexNames, true)) {
+        $pdo->exec("ALTER TABLE feedbacks ADD INDEX idx_feedbacks_created_at (created_at)");
+    }
     $hasRideFeedbackIndex = false;
     foreach ($feedbackIndexes as $index) {
         if ($index['Key_name'] === 'uq_feedback_ride') {

@@ -46,7 +46,9 @@ CREATE TABLE IF NOT EXISTS road_notifications (
 	starts_at DATETIME NULL,
 	ends_at DATETIME NULL,
 	is_active TINYINT(1) NOT NULL DEFAULT 1,
-	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	INDEX idx_notifications_created (created_at),
+	INDEX idx_notifications_active_created (is_active, created_at)
 );
 
 INSERT IGNORE INTO bus_stops (name, area, latitude, longitude) VALUES
@@ -69,7 +71,9 @@ CREATE TABLE IF NOT EXISTS ride_history (
 	status VARCHAR(20) NOT NULL DEFAULT 'completed',
 	started_at DATETIME NULL,
 	completed_at DATETIME NULL,
-	INDEX idx_ride_history_user (user_id)
+	INDEX idx_ride_history_user_started (user_id, started_at),
+	INDEX idx_ride_history_user_status (user_id, status),
+	CONSTRAINT fk_ride_history_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS feedbacks (
@@ -81,6 +85,7 @@ CREATE TABLE IF NOT EXISTS feedbacks (
 	photo_path VARCHAR(255) NULL,
 	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	UNIQUE KEY uq_feedback_ride (ride_id),
+	INDEX idx_feedbacks_created_at (created_at),
 	CONSTRAINT fk_feedback_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
 	CONSTRAINT fk_feedback_ride FOREIGN KEY (ride_id) REFERENCES ride_history(id) ON DELETE SET NULL
 );
