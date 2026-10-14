@@ -73,20 +73,43 @@ function routeStopSegment(route, startName, destinationName) {
         return [];
     }
 
-    const startIndex = route.stops.indexOf(startName);
-    const destinationIndex = route.stops.indexOf(destinationName);
-    if (startIndex < 0 || destinationIndex < 0 || startIndex === destinationIndex) {
+    const stops = [...(route.pathStops || route.stops)];
+    if (stops.length > 1 && stops[0] === stops[stops.length - 1]) {
+        stops.pop();
+    }
+    const startIndexes = stops.reduce((indexes, stopName, index) => {
+        if (stopName === startName) {
+            indexes.push(index);
+        }
+        return indexes;
+    }, []);
+    const destinationIndexes = stops.reduce((indexes, stopName, index) => {
+        if (stopName === destinationName) {
+            indexes.push(index);
+        }
+        return indexes;
+    }, []);
+    if (!startIndexes.length || !destinationIndexes.length || startName === destinationName) {
         return [];
     }
 
-    const direction = destinationIndex > startIndex ? 1 : -1;
-    const segment = [];
-    for (let index = startIndex; ; index += direction) {
-        segment.push(route.stops[index]);
-        if (index === destinationIndex) {
-            return segment;
-        }
-    }
+    let shortestSegment = [];
+    startIndexes.forEach(startIndex => {
+        destinationIndexes.forEach(destinationIndex => {
+            const distance = (destinationIndex - startIndex + stops.length) % stops.length;
+            if (distance === 0 || (shortestSegment.length && distance >= shortestSegment.length - 1)) {
+                return;
+            }
+
+            const segment = [];
+            for (let offset = 0; offset <= distance; offset += 1) {
+                segment.push(stops[(startIndex + offset) % stops.length]);
+            }
+            shortestSegment = segment;
+        });
+    });
+
+    return shortestSegment;
 }
 
 function routeDistanceKm(route, startName, destinationName) {
@@ -110,6 +133,12 @@ function routeDistanceKm(route, startName, destinationName) {
     }
 
     return distanceKm;
+}
+
+function estimateRouteJourneyMinutes(route, startName, destinationName) {
+    const waitingMinutes = Number.parseInt(route.eta, 10) || route.baseEta || 0;
+    const rideMinutes = Math.max(0, routeStopSegment(route, startName, destinationName).length - 1) * 3;
+    return waitingMinutes + rideMinutes;
 }
 
 function fareForDistance(distanceKm) {
@@ -499,6 +528,7 @@ const routeCatalog = routeDefinitions.map(route => ({
     from: route.terminals[0],
     to: route.terminals[route.terminals.length - 1],
     stops: route.stops,
+    pathStops: route.pathStops,
     baseEta: routeSchedules[route.id]?.eta || 5,
     eta: `${routeSchedules[route.id]?.eta || 5} min`,
     schedule: routeSchedules[route.id]?.hours || "Service hours not listed",
@@ -648,7 +678,7 @@ function rankRoutes(startName, destinationName) {
             let score = 0;
 
             if (servesBoth) {
-                score += 100;
+                score += 1000 - routeStopSegment(route, startName, destinationName).length * 20;
             } else if (servesStart) {
                 score += 35;
             } else if (route.stops.includes(destinationName)) {
@@ -664,7 +694,14 @@ function rankRoutes(startName, destinationName) {
 
             return { route, score, servesBoth };
         })
-        .sort((first, second) => second.score - first.score)
+        .sort((first, second) => {
+            if (first.servesBoth && second.servesBoth) {
+                return estimateRouteJourneyMinutes(first.route, startName, destinationName) -
+                    estimateRouteJourneyMinutes(second.route, startName, destinationName) ||
+                    first.route.baseEta - second.route.baseEta;
+            }
+            return second.score - first.score;
+        })
         .map((item, index) => ({
             ...item.route,
             recommended: index === 0 && item.route.available && item.servesBoth
@@ -682,13 +719,21 @@ function findTransferSuggestions(startName, destinationName) {
             const route = availableRoutes.find(candidate => candidate.id === leg.routeId);
             return total + routeStopSegment(route, leg.from, leg.to).length - 1;
         }, 0);
+        const waitingMinutes = legs.reduce((total, leg) => {
+            const route = availableRoutes.find(candidate => candidate.id === leg.routeId);
+            return total + (Number.parseInt(route?.eta, 10) || route?.baseEta || 0);
+        }, 0);
         const walkingDistanceMeters = transfers.reduce((total, transfer) => total + transfer.walkingDistanceMeters, 0);
+        const estimatedMinutes = waitingMinutes +
+            rideSegments * 3 +
+            walkingDistanceMeters / 67 +
+            transfers.length * 4;
         const suggestion = {
             legs,
             transfers,
             rideSegments,
             walkingDistanceMeters,
-            score: walkingDistanceMeters + rideSegments * 250 + transfers.length * 500
+            estimatedMinutes
         };
         const key = legs.map(leg => `${leg.routeId}:${leg.from}>${leg.to}`).join("|") +
             "|" + transfers.map(transfer => `${transfer.exitStop}>${transfer.boardingStop}`).join("|");
@@ -759,10 +804,9 @@ function findTransferSuggestions(startName, destinationName) {
 
     return [...suggestions.values()]
         .sort((first, second) =>
+            first.estimatedMinutes - second.estimatedMinutes ||
             first.transfers.length - second.transfers.length ||
-            first.walkingDistanceMeters - second.walkingDistanceMeters ||
-            first.rideSegments - second.rideSegments ||
-            first.score - second.score
+            first.walkingDistanceMeters - second.walkingDistanceMeters
         )
         .slice(0, 3);
 }
@@ -803,7 +847,7 @@ function showTransferPlan(plan, startName, destinationName, suggestions) {
             : `change buses at ${transfer.boardingStop}`;
         return `get off at ${transfer.exitStop}, ${walkText}, then board ${routeNames[index + 1]}`;
     });
-    tripStatus.textContent = `No direct route. Take ${routeNames[0]}${changes.length ? `; ${changes.join("; ")}` : ""} toward ${destinationName}.`;
+    tripStatus.textContent = `Recommended trip: Take ${routeNames[0]}${changes.length ? `; ${changes.join("; ")}` : ""} toward ${destinationName}.`;
     tripStatus.className = "trip-status is-active";
 }
 
@@ -972,21 +1016,24 @@ async function findRoutes() {
         toLocationInput.value = destinationStop.name;
         const startName = startStop.name;
         const destinationName = destinationStop.name;
-        const directRoute = routeCatalog.find(route => {
-            return route.available && routeStopSegment(route, startName, destinationName).length >= 2;
-        });
-        const transferSuggestions = directRoute ? [] : findTransferSuggestions(startName, destinationName);
-        const transferSuggestion = transferSuggestions[0] || null;
         const routes = rankRoutes(startName, destinationName);
+        const journeyOptions = findTransferSuggestions(startName, destinationName);
+        const bestJourney = journeyOptions[0] || null;
+        const directRoute = bestJourney?.legs.length === 1
+            ? routeCatalog.find(route => route.id === bestJourney.legs[0].routeId) || null
+            : null;
+        const transferSuggestion = bestJourney && bestJourney.legs.length > 1 ? bestJourney : null;
 
         if (transferSuggestion) {
-            showTransferPlan(transferSuggestion, startName, destinationName, transferSuggestions);
+            showTransferPlan(transferSuggestion, startName, destinationName, journeyOptions);
         } else {
             renderRoutes(routes, startName, destinationName);
             currentTransferPlan = null;
             currentTransferOptions = [];
             activeTransferLeg = 1;
-            selectedRoute = directRoute || routeDefinitions.find(route => route.id === routes[0]?.id) || null;
+            selectedRoute = routeDefinitions.find(route => route.id === directRoute?.id) ||
+                routeDefinitions.find(route => route.id === routes[0]?.id) ||
+                null;
             highlightTripStops(startName, destinationName, null);
             highlightRoute(selectedRoute);
             if (directRoute) {
@@ -1203,14 +1250,17 @@ function updateTrip(startName = resolveStop(fromLocationInput.value)?.name, dest
             return total + Math.max(0, routeStopSegment(route, leg.from, leg.to).length - 1);
         }, 0)
         : Math.max(0, passingStops.length - 1);
-    const northRouteExtraMinutes = transferPlan
-        ? (transferPlan.legs.some(leg => leg.routeId === "north-route") ? 12 : 0)
-        : (matchingRoute?.id === "north-route" ? 12 : 0);
     const walkingDistanceMeters = transferPlan
         ? transferPlan.transfers.reduce((total, transfer) => total + transfer.walkingDistanceMeters, 0)
         : 0;
     const walkingMinutes = Math.ceil(walkingDistanceMeters / 67);
-    const estimatedMinutes = 4 + transferRideSegments * 3 + walkingMinutes + northRouteExtraMinutes;
+    const transferMinutes = transferPlan ? transferPlan.transfers.length * 4 : 0;
+    const plannedRoutes = transferPlan
+        ? transferPlan.legs.map(leg => routeCatalog.find(route => route.id === leg.routeId))
+        : [routeCatalog.find(route => route.id === matchingRoute?.id)].filter(Boolean);
+    const waitingMinutes = plannedRoutes.reduce((total, route) =>
+        total + (Number.parseInt(getRouteEta(route), 10) || route.baseEta || 0), 0);
+    const estimatedMinutes = waitingMinutes + transferRideSegments * 3 + walkingMinutes + transferMinutes;
 
     busEta.textContent = `${estimatedMinutes} min`;
     nearestStop.textContent = legStartName;
