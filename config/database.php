@@ -61,6 +61,18 @@ try {
         }
     }
 
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS password_reset_codes (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL UNIQUE,
+            code_hash VARCHAR(255) NOT NULL,
+            expires_at DATETIME NOT NULL,
+            attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT fk_password_reset_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )"
+    );
+
     $fareTypeColumn = $pdo->query("SHOW COLUMNS FROM users LIKE 'fare_type'")->fetch(PDO::FETCH_ASSOC);
     if ($fareTypeColumn && ($fareTypeColumn['Null'] === 'YES' || $fareTypeColumn['Default'] !== 'regular')) {
         $pdo->exec("UPDATE users SET fare_type = 'regular' WHERE fare_type IS NULL OR fare_type = ''");

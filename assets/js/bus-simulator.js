@@ -1,5 +1,5 @@
 const map = L.map("map").setView([14.568, 121.042], 13);
-const activeStopNames = new Set((window.nextStopState?.activeStops?.length ? window.nextStopState.activeStops : []).map(name => String(name)));
+const activeStopNames = new Set((Array.isArray(window.nextStopState?.activeStops) ? window.nextStopState.activeStops : []).map(name => String(name)));
 const routeWarnings = Array.isArray(window.nextStopState?.alerts) ? window.nextStopState.alerts : [];
 const routeOperations = window.nextStopState?.routeOperations || {};
 const routeBuses = Array.isArray(window.nextStopState?.routeBuses) ? window.nextStopState.routeBuses : [];
@@ -56,13 +56,10 @@ const stopCatalog = [
 ];
 
 const stops = stopCatalog.filter(stop => {
-    if (!activeStopNames.size) {
-        return true;
-    }
     return activeStopNames.has(stop.name);
 });
 
-const routeHasActiveStops = route => route.stops.every(stopName => activeStopNames.size === 0 || activeStopNames.has(stopName));
+const routeHasActiveStops = route => route.stops.filter(stopName => activeStopNames.has(stopName)).length >= 2;
 const routeIsOnline = route => routeOperations[route.id] === undefined || Number(routeOperations[route.id]) === 1;
 
 const stopByName = name => stopCatalog.find(stop => stop.name === name);
@@ -713,6 +710,7 @@ function findTransferSuggestions(startName, destinationName) {
             }
 
             const reachableStops = route.stops.filter(stopName =>
+                activeStopNames.has(stopName) &&
                 routeStopSegment(route, currentStop, stopName).length >= 2
             );
             reachableStops.forEach(exitStop => {
@@ -732,7 +730,7 @@ function findTransferSuggestions(startName, destinationName) {
                         return;
                     }
 
-                    nextRoute.stops.forEach(boardingStop => {
+                    nextRoute.stops.filter(stopName => activeStopNames.has(stopName)).forEach(boardingStop => {
                         const boardingLocation = stopByName(boardingStop);
                         if (!boardingLocation) {
                             return;
@@ -760,7 +758,12 @@ function findTransferSuggestions(startName, destinationName) {
     search(startName, [], [], new Set());
 
     return [...suggestions.values()]
-        .sort((first, second) => first.score - second.score)
+        .sort((first, second) =>
+            first.transfers.length - second.transfers.length ||
+            first.walkingDistanceMeters - second.walkingDistanceMeters ||
+            first.rideSegments - second.rideSegments ||
+            first.score - second.score
+        )
         .slice(0, 3);
 }
 

@@ -7,8 +7,9 @@ if (isset($_SESSION['user_id'])) {
 }
 
 $success = $_SESSION['register_success'] ?? '';
+$loginSuccess = $_SESSION['login_success'] ?? '';
 $error = $_SESSION['login_error'] ?? '';
-unset($_SESSION['register_success'], $_SESSION['login_error']);
+unset($_SESSION['register_success'], $_SESSION['login_success'], $_SESSION['login_error']);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -40,6 +41,9 @@ unset($_SESSION['register_success'], $_SESSION['login_error']);
 
             <?php if ($success !== ''): ?>
                 <p class="form-success"><?php echo htmlspecialchars($success); ?></p>
+            <?php endif; ?>
+            <?php if ($loginSuccess !== ''): ?>
+                <p class="form-success"><?php echo htmlspecialchars($loginSuccess); ?></p>
             <?php endif; ?>
             <?php if ($error !== ''): ?>
                 <p class="form-error"><?php echo htmlspecialchars($error); ?></p>
@@ -75,7 +79,7 @@ unset($_SESSION['register_success'], $_SESSION['login_error']);
 
                 <div class="auth-options">
                     <label><input type="checkbox"> Keep me signed in</label>
-                    <a href="#">Forgot password?</a>
+                    <a href="forgot-password.php">Forgot password?</a>
                 </div>
 
                 <button type="submit">Sign in</button>
