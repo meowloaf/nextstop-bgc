@@ -5,62 +5,8 @@ function handleProfileUpdate(PDO $pdo, int $userId): array
     unset($_SESSION['profile_message']);
     $error = '';
 
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update-profile') {
-        $postedName = $_POST['profile_name'] ?? '';
-        $postedContactName = $_POST['emergency_contact_name'] ?? '';
-        $postedContact = $_POST['emergency_contact'] ?? '';
-        $postedFareType = $_POST['fare_type'] ?? '';
-        $profileName = trim(is_string($postedName) ? $postedName : '');
-        $emergencyContactName = trim(is_string($postedContactName) ? $postedContactName : '');
-        $emergencyContact = trim(is_string($postedContact) ? $postedContact : '');
-        $fareType = is_string($postedFareType) ? $postedFareType : '';
-
-        if ($profileName === '' || !preg_match('/^[A-Za-z0-9 _.-]{3,50}$/', $profileName)) {
-            $error = 'Use a name between 3 and 50 characters.';
-        } elseif (!in_array($fareType, ['', 'regular', 'student', 'pwd', 'senior'], true)) {
-            $error = 'Choose a valid account type.';
-        } elseif ($emergencyContactName !== '' && !preg_match('/^[A-Za-z .\'-]{2,100}$/', $emergencyContactName)) {
-            $error = 'Enter a valid emergency contact name.';
-        } elseif ($emergencyContact !== '' && !preg_match('/^[0-9+() .-]{7,30}$/', $emergencyContact)) {
-            $error = 'Enter a valid emergency contact number.';
-        }
-
-        if ($error === '') {
-            try {
-                $update = $pdo->prepare(
-                    'UPDATE users
-                     SET username = ?, fare_type = ?, emergency_contact_name = ?, emergency_contact = ?
-                     WHERE id = ?'
-                );
-                $update->execute([
-                    $profileName,
-                    $fareType !== '' ? $fareType : null,
-                    $emergencyContactName ?: null,
-                    $emergencyContact ?: null,
-                    $userId,
-                ]);
-                $_SESSION['username'] = $profileName;
-                $_SESSION['profile_message'] = 'Profile updated successfully.';
-
-                $currentPage = $_SERVER['SCRIPT_NAME'] ?? '';
-                if ($currentPage !== '') {
-                    $queryString = http_build_query($_GET);
-                    header('Location: ' . $currentPage . ($queryString !== '' ? '?' . $queryString : ''));
-                    exit;
-                }
-                $message = $_SESSION['profile_message'];
-                unset($_SESSION['profile_message']);
-            } catch (PDOException $exception) {
-                error_log('Profile update failed: ' . $exception->getMessage());
-                $error = $exception->getCode() === '23000'
-                    ? 'That name may already be in use.'
-                    : 'Your profile could not be updated right now.';
-            }
-        }
-    }
-
     $profileStmt = $pdo->prepare(
-        'SELECT username, fare_type, emergency_contact_name, emergency_contact
+        'SELECT username, email, fare_type, emergency_contact_name, emergency_contact
          FROM users WHERE id = ?'
     );
     $profileStmt->execute([$userId]);
@@ -75,24 +21,96 @@ function handleProfileUpdate(PDO $pdo, int $userId): array
         exit;
     }
 
-    $postedName = $_POST['profile_name'] ?? '';
-    $postedContactName = $_POST['emergency_contact_name'] ?? '';
-    $postedContact = $_POST['emergency_contact'] ?? '';
-    $postedFareType = $_POST['fare_type'] ?? '';
-    $formValues = [
-        'profile_name' => is_string($postedName) ? $postedName : $profile['username'],
-        'fare_type' => is_string($postedFareType) ? $postedFareType : ($profile['fare_type'] ?? ''),
-        'emergency_contact_name' => is_string($postedContactName) ? $postedContactName : ($profile['emergency_contact_name'] ?? ''),
-        'emergency_contact' => is_string($postedContact) ? $postedContact : ($profile['emergency_contact'] ?? ''),
-    ];
-    if ($message !== '') {
-        $formValues = [
-            'profile_name' => $profile['username'],
-            'fare_type' => $profile['fare_type'] ?? '',
-            'emergency_contact_name' => $profile['emergency_contact_name'] ?? '',
-            'emergency_contact' => $profile['emergency_contact'] ?? '',
-        ];
+    $profileEmail = $profile['email'] ?? '';
+    $emergencyContactName = $profile['emergency_contact_name'] ?? '';
+    $emergencyContact = $profile['emergency_contact'] ?? '';
+    $fareType = $profile['fare_type'] ?: 'regular';
+    $profileName = $profile['username'];
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update-profile') {
+        $postedName = $_POST['profile_name'] ?? '';
+        $postedEmail = $_POST['profile_email'] ?? '';
+        $postedContactName = $_POST['emergency_contact_name'] ?? '';
+        $postedContact = $_POST['emergency_contact'] ?? '';
+        $postedFareType = $_POST['fare_type'] ?? 'regular';
+        $submittedName = trim(is_string($postedName) ? $postedName : '');
+        $submittedEmail = trim(is_string($postedEmail) ? $postedEmail : '');
+        $submittedContactName = trim(is_string($postedContactName) ? $postedContactName : '');
+        $submittedContact = trim(is_string($postedContact) ? $postedContact : '');
+        $submittedFareType = is_string($postedFareType) ? $postedFareType : '';
+        $profileName = $submittedName !== '' ? $submittedName : $profileName;
+        $profileEmail = $submittedEmail !== '' ? $submittedEmail : $profileEmail;
+        $emergencyContactName = $submittedContactName !== '' ? $submittedContactName : $emergencyContactName;
+        $emergencyContact = $submittedContact !== '' ? $submittedContact : $emergencyContact;
+        $fareType = $submittedFareType !== '' ? $submittedFareType : $fareType;
+
+        if ($profileName === '' || !preg_match('/^[A-Za-z0-9 _.-]{3,50}$/', $profileName)) {
+            $error = 'Use a username between 3 and 50 characters.';
+        } elseif ($profileEmail !== '' && (!filter_var($profileEmail, FILTER_VALIDATE_EMAIL) || strlen($profileEmail) > 255)) {
+            $error = 'Enter a valid email address.';
+        } elseif (!in_array($fareType, ['regular', 'student', 'pwd', 'senior'], true)) {
+            $error = 'Choose a valid account type.';
+        } elseif ($emergencyContactName !== '' && !preg_match('/^[A-Za-z .\'-]{2,100}$/', $emergencyContactName)) {
+            $error = 'Enter a valid emergency contact name.';
+        } elseif ($emergencyContact !== '' && !preg_match('/^[0-9+() .-]{7,30}$/', $emergencyContact)) {
+            $error = 'Enter a valid emergency contact number.';
+        }
+
+        if ($error === '' && $profileEmail !== '') {
+            $emailCheck = $pdo->prepare('SELECT id FROM users WHERE email = ? AND id <> ? LIMIT 1');
+            $emailCheck->execute([$profileEmail, $userId]);
+            if ($emailCheck->fetch()) {
+                $error = 'That email address is already in use.';
+            }
+        }
+
+        if ($error === '') {
+            try {
+                $update = $pdo->prepare(
+                    'UPDATE users
+                     SET username = ?, email = ?, fare_type = ?, emergency_contact_name = ?, emergency_contact = ?
+                     WHERE id = ?'
+                );
+                $update->execute([
+                    $profileName,
+                    $profileEmail !== '' ? $profileEmail : null,
+                    $fareType,
+                    $emergencyContactName ?: null,
+                    $emergencyContact ?: null,
+                    $userId,
+                ]);
+                $_SESSION['username'] = $profileName;
+                $_SESSION['profile_message'] = 'Profile updated successfully.';
+                $profile['username'] = $profileName;
+                $profile['email'] = $profileEmail;
+                $profile['fare_type'] = $fareType;
+                $profile['emergency_contact_name'] = $emergencyContactName;
+                $profile['emergency_contact'] = $emergencyContact;
+
+                $currentPage = $_SERVER['SCRIPT_NAME'] ?? '';
+                if ($currentPage !== '') {
+                    $queryString = http_build_query($_GET);
+                    header('Location: ' . $currentPage . ($queryString !== '' ? '?' . $queryString : ''));
+                    exit;
+                }
+                $message = $_SESSION['profile_message'];
+                unset($_SESSION['profile_message']);
+            } catch (PDOException $exception) {
+                error_log('Profile update failed: ' . $exception->getMessage());
+                $error = $exception->getCode() === '23000'
+                    ? 'That username or email may already be in use.'
+                    : 'Your profile could not be updated right now.';
+            }
+        }
     }
+
+    $formValues = [
+        'profile_name' => $profileName,
+        'profile_email' => $profileEmail,
+        'fare_type' => $fareType,
+        'emergency_contact_name' => $emergencyContactName,
+        'emergency_contact' => $emergencyContact,
+    ];
 
     return [$profile, $message, $error, $formValues];
 }
@@ -100,39 +118,40 @@ function handleProfileUpdate(PDO $pdo, int $userId): array
 function renderProfileEditor(array $profile, string $assetPrefix, string $message, string $error, array $formValues): void
 {
     $accountTypeLabels = [
-        '' => 'Not specified',
         'regular' => 'Regular',
         'student' => 'Student',
         'pwd' => 'PWD',
         'senior' => 'Senior Citizen',
     ];
-    $accountType = $profile['fare_type'] ?? '';
+    $accountType = $profile['fare_type'] ?: 'regular';
     $showEditor = $error !== '';
     ?>
     <button class="admin-profile-trigger" id="profile-trigger" type="button" aria-haspopup="dialog" aria-controls="profile-dialog">
         <span class="admin-profile-name"><?php echo htmlspecialchars($profile['username']); ?></span>
     </button>
-    <div class="profile-dialog" id="profile-dialog" role="dialog" aria-modal="true" aria-labelledby="profile-title" <?php echo $message === '' && $error === '' ? 'hidden' : ''; ?>>
+    <?php if ($message !== ''): ?><span class="profile-save-message" role="status"><?php echo htmlspecialchars($message); ?></span><?php endif; ?>
+    <div class="profile-dialog" id="profile-dialog" role="dialog" aria-modal="true" aria-labelledby="profile-title" <?php echo $error === '' ? 'hidden' : ''; ?>>
         <div class="profile-dialog-panel">
             <button class="profile-close" id="profile-close" type="button" aria-label="Close profile">×</button>
             <h2 id="profile-title">Your Profile</h2>
             <p>View your account details. Only you can edit this profile.</p>
-            <?php if ($message !== ''): ?><p class="form-success" role="status"><?php echo htmlspecialchars($message); ?></p><?php endif; ?>
             <?php if ($error !== ''): ?><p class="form-error" role="alert"><?php echo htmlspecialchars($error); ?></p><?php endif; ?>
             <div id="profile-details" class="profile-details" <?php echo $showEditor ? 'hidden' : ''; ?>>
-                <div><span>Name</span><strong><?php echo htmlspecialchars($profile['username']); ?></strong></div>
-                <div><span>Account type</span><strong><?php echo htmlspecialchars($accountTypeLabels[$accountType] ?? 'Not specified'); ?></strong></div>
+                <div><span>Username</span><strong><?php echo htmlspecialchars($profile['username']); ?></strong></div>
+                <div><span>Email</span><strong><?php echo htmlspecialchars($profile['email'] ?: 'Not provided'); ?></strong></div>
+                <div><span>Account type</span><strong><?php echo htmlspecialchars($accountTypeLabels[$accountType] ?? 'Regular'); ?></strong></div>
                 <div><span>Emergency contact name</span><strong><?php echo htmlspecialchars($profile['emergency_contact_name'] ?: 'Not provided'); ?></strong></div>
                 <div><span>Emergency contact number</span><strong><?php echo htmlspecialchars($profile['emergency_contact'] ?: 'Not provided'); ?></strong></div>
                 <button class="find-button" id="profile-edit" type="button">Edit Profile</button>
             </div>
             <form method="POST" id="profile-form" <?php echo $showEditor ? '' : 'hidden'; ?>>
                 <input type="hidden" name="action" value="update-profile">
-                <label for="profile-name">Name</label>
+                <label for="profile-name">Username</label>
                 <input id="profile-name" name="profile_name" value="<?php echo htmlspecialchars($formValues['profile_name']); ?>" maxlength="50" required>
+                <label for="profile-email">Email</label>
+                <input id="profile-email" name="profile_email" type="email" value="<?php echo htmlspecialchars($formValues['profile_email']); ?>" maxlength="255" autocomplete="email">
                 <label for="profile-fare-type">Account type</label>
                 <select id="profile-fare-type" name="fare_type">
-                    <option value="" <?php echo $formValues['fare_type'] === '' ? 'selected' : ''; ?>>Not specified</option>
                     <option value="regular" <?php echo $formValues['fare_type'] === 'regular' ? 'selected' : ''; ?>>Regular</option>
                     <option value="student" <?php echo $formValues['fare_type'] === 'student' ? 'selected' : ''; ?>>Student</option>
                     <option value="pwd" <?php echo $formValues['fare_type'] === 'pwd' ? 'selected' : ''; ?>>PWD</option>

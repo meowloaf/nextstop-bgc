@@ -250,6 +250,16 @@ border-color: #2c9d8a;
 box-shadow: 0 0 0 3px rgba(44,157,138,.13);
 }
 
+.password-field {
+position: relative;
+width: 100%;
+margin-top: 10px;
+}
+
+.password-field input {
+padding-right: 50px;
+}
+
 .auth-content form button,
 .social-button,
 .otp-button {
@@ -277,6 +287,7 @@ color: white;
 background: white;
 border: 1px solid #d5e1df;
 color: #33494a;
+text-decoration: none;
 }
 
 .otp-button {
@@ -293,10 +304,10 @@ box-shadow: 0 7px 16px rgba(35, 86, 80, .12);
 }
 
 .google-mark {
-color: #4285f4;
-font-family: Arial, sans-serif;
-font-size: 17px;
-font-weight: 700;
+display: block;
+width: 20px;
+height: 20px;
+flex: 0 0 20px;
 }
 
 .auth-divider {
@@ -634,6 +645,48 @@ text-decoration: underline;
 transform: translateY(-1px);
 }
 
+.auth-redesign .auth-content form .password-toggle {
+position: absolute;
+top: 50%;
+right: 8px;
+width: 36px;
+height: 36px;
+min-height: 0;
+display: grid;
+place-items: center;
+padding: 7px;
+margin: 0;
+border: 0;
+border-radius: 7px;
+background: transparent;
+color: #71807f;
+font-size: 0;
+letter-spacing: normal;
+transform: translateY(-50%);
+box-shadow: none;
+cursor: pointer;
+}
+
+.auth-redesign .auth-content form .password-toggle:hover {
+background: transparent;
+color: #71807f;
+transform: translateY(-50%);
+box-shadow: none;
+}
+
+.password-toggle svg {
+width: 20px;
+height: 20px;
+}
+
+.password-toggle .eye-slash {
+display: block;
+}
+
+.password-toggle[aria-pressed="true"] .eye-slash {
+display: none;
+}
+
 @media (max-width: 760px) {
     .login-page {
         padding: 12px;
@@ -752,6 +805,11 @@ color: #26343a;
 font-size: 12px;
 font-weight: 600;
 text-decoration: none;
+}
+
+.profile-save-message {
+color: #15803d;
+font-size: 12px;
 }
 
 .admin-profile-trigger {
@@ -945,10 +1003,17 @@ text-decoration: none;
 .nav-icon {
 display: inline-grid;
 place-items: center;
-flex: 0 0 18px;
-width: 18px;
-font-size: 15px;
+flex: 0 0 24px;
+width: 24px;
+height: 24px;
+font-size: 20px;
 line-height: 1;
+}
+
+.nav-icon svg {
+display: block;
+width: 22px;
+height: 22px;
 }
 
 .nav-item.active {

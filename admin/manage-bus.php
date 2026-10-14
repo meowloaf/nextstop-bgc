@@ -39,9 +39,20 @@ try {
         if (!$busId) {
             $_SESSION['admin_message'] = 'That bus could not be removed.';
         } else {
-            $stmt = $pdo->prepare('DELETE FROM route_buses WHERE id = ? AND route_id = ?');
-            $stmt->execute([$busId, $routeId]);
-            $_SESSION['admin_message'] = $stmt->rowCount() ? 'Bus removed from the route.' : 'That bus could not be found on this route.';
+            $busCheck = $pdo->prepare('SELECT is_default FROM route_buses WHERE id = ? AND route_id = ?');
+            $busCheck->execute([$busId, $routeId]);
+            $isDefaultBus = $busCheck->fetchColumn();
+            if ($isDefaultBus === false) {
+                $_SESSION['admin_message'] = 'That bus could not be found on this route.';
+            } elseif ((int) $isDefaultBus === 1) {
+                $_SESSION['admin_message'] = 'The default bus for each route cannot be removed.';
+            } else {
+                $stmt = $pdo->prepare('DELETE FROM route_buses WHERE id = ? AND route_id = ? AND is_default = 0');
+                $stmt->execute([$busId, $routeId]);
+                $_SESSION['admin_message'] = $stmt->rowCount()
+                    ? 'Bus removed from the route.'
+                    : 'That bus could not be removed.';
+            }
         }
     } else {
         $busId = filter_input(INPUT_POST, 'bus_id', FILTER_VALIDATE_INT);

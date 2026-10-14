@@ -43,29 +43,47 @@ unset($_SESSION['register_error']);
             <?php endif; ?>
 
             <a class="social-button" href="auth/google-login.php">
-                <span class="google-mark" aria-hidden="true">G</span>
+                <svg class="google-mark" aria-hidden="true" viewBox="0 0 48 48">
+                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.9c-.58 2.96-2.26 5.48-4.76 7.18l7.73 6C44.38 37.98 46.98 31.85 46.98 24.55z"/>
+                    <path fill="#FBBC05" d="M10.53 28.59A14.4 14.4 0 0 1 9.75 24c0-1.59.27-3.13.76-4.59l-7.98-6.19A23.9 23.9 0 0 0 0 24c0 3.87.93 7.53 2.56 10.78l7.97-6.19z"/>
+                    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.9-5.8l-7.73-6c-2.15 1.45-4.9 2.3-8.17 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                </svg>
                 Sign up with Google
             </a>
 
-            <button class="otp-button" type="button">
-                <span aria-hidden="true">&#9742;</span>
-                Sign up with SMS OTP
-            </button>
+            <div class="auth-divider"><span>or create an account</span></div>
 
-            <div class="auth-divider"><span>or create with username</span></div>
-
-            <form action="auth/register.php" method="POST" enctype="multipart/form-data">
+            <form action="auth/register.php" method="POST">
                 <label for="register-email">Email</label>
-                <input type="email" id="register-email" name="email" placeholder="you@example.com">
+                <input type="email" id="register-email" name="email" placeholder="you@example.com" autocomplete="email" maxlength="255" required>
 
                 <label for="register-username">Username</label>
-                <input type="text" id="register-username" name="username" placeholder="Username" minlength="3" maxlength="50" required>
+                <input type="text" id="register-username" name="username" placeholder="Username" minlength="3" maxlength="50" autocomplete="username" required>
 
                 <label for="register-password">Password</label>
-                <input type="password" id="register-password" name="password" placeholder="Password" minlength="6" required>
+                <div class="password-field">
+                    <input type="password" id="register-password" name="password" placeholder="Password" minlength="6" autocomplete="new-password" required>
+                    <button class="password-toggle" type="button" aria-label="Show password" aria-pressed="false" aria-controls="register-password">
+                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/>
+                            <circle cx="12" cy="12" r="3"/>
+                            <path class="eye-slash" d="m4 4 16 16"/>
+                        </svg>
+                    </button>
+                </div>
 
                 <label for="confirm-password">Confirm password</label>
-                <input type="password" id="confirm-password" name="confirm_password" placeholder="Confirm password" minlength="6" required>
+                <div class="password-field">
+                    <input type="password" id="confirm-password" name="confirm_password" placeholder="Confirm password" minlength="6" autocomplete="new-password" required>
+                    <button class="password-toggle" type="button" aria-label="Show password" aria-pressed="false" aria-controls="confirm-password">
+                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/>
+                            <circle cx="12" cy="12" r="3"/>
+                            <path class="eye-slash" d="m4 4 16 16"/>
+                        </svg>
+                    </button>
+                </div>
 
                 <label for="fare-type">Fare type</label>
                 <select id="fare-type" name="fare_type" required>
@@ -74,9 +92,6 @@ unset($_SESSION['register_error']);
                     <option value="senior">Senior Citizen</option>
                     <option value="pwd">PWD</option>
                 </select>
-
-                <label for="eligibility-proof">Eligibility proof (for student, senior, or PWD discount)</label>
-                <input type="file" id="eligibility-proof" name="eligibility_proof" accept="image/jpeg,image/png,application/pdf">
 
                 <button type="submit">Create account</button>
             </form>
@@ -88,5 +103,6 @@ unset($_SESSION['register_error']);
         </div>
     </section>
 </main>
+<script src="assets/js/password-toggle.js"></script>
 </body>
 </html>

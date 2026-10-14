@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS users (
 	email VARCHAR(255) NULL UNIQUE,
 	google_id VARCHAR(255) NULL UNIQUE,
 	role VARCHAR(20) NOT NULL DEFAULT 'user',
-	fare_type VARCHAR(20) NULL,
+	fare_type VARCHAR(20) NOT NULL DEFAULT 'regular',
 	eligibility_proof VARCHAR(255) NULL,
 	emergency_contact_name VARCHAR(100) NULL,
 	emergency_contact VARCHAR(100) NULL,
@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS route_buses (
 	route_id VARCHAR(40) NOT NULL,
 	plate_number VARCHAR(20) NOT NULL UNIQUE,
 	is_online TINYINT(1) NOT NULL DEFAULT 1,
+	is_default TINYINT(1) NOT NULL DEFAULT 0,
 	INDEX idx_route_buses_route (route_id)
 );
 
@@ -97,3 +98,12 @@ INSERT IGNORE INTO route_operations (route_id, is_online) VALUES
 ('central-route', 1),
 ('night-route', 1),
 ('lrt-ayala-route', 1);
+
+INSERT IGNORE INTO route_buses (route_id, plate_number, is_online, is_default) VALUES
+('east-express', 'EX-DEFAULT', 1, 1),
+('north-route', 'NR-DEFAULT', 1, 1),
+('west-route', 'WR-DEFAULT', 1, 1),
+('arca-south-express', 'AS-DEFAULT', 1, 1),
+('central-route', 'CR-DEFAULT', 1, 1),
+('night-route', 'NT-DEFAULT', 1, 1),
+('lrt-ayala-route', 'LRT-DEFAULT', 1, 1);

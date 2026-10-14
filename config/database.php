@@ -20,7 +20,7 @@ try {
             email VARCHAR(255) NULL UNIQUE,
             google_id VARCHAR(255) NULL UNIQUE,
             role VARCHAR(20) NOT NULL DEFAULT 'user',
-            fare_type VARCHAR(20) NULL,
+            fare_type VARCHAR(20) NOT NULL DEFAULT 'regular',
             eligibility_proof VARCHAR(255) NULL,
             emergency_contact_name VARCHAR(100) NULL,
             emergency_contact VARCHAR(100) NULL,
@@ -48,7 +48,7 @@ try {
             } elseif ($column === 'google_id') {
                 $pdo->exec("ALTER TABLE users ADD COLUMN google_id VARCHAR(255) NULL UNIQUE AFTER email");
             } elseif ($column === 'fare_type') {
-                $pdo->exec("ALTER TABLE users ADD COLUMN fare_type VARCHAR(20) NULL AFTER role");
+                $pdo->exec("ALTER TABLE users ADD COLUMN fare_type VARCHAR(20) NOT NULL DEFAULT 'regular' AFTER role");
             } elseif ($column === 'eligibility_proof') {
                 $pdo->exec("ALTER TABLE users ADD COLUMN eligibility_proof VARCHAR(255) NULL AFTER fare_type");
             } elseif ($column === 'emergency_contact_name') {
@@ -59,6 +59,12 @@ try {
                 $pdo->exec("ALTER TABLE users ADD COLUMN emergency_contact_address VARCHAR(255) NULL AFTER emergency_contact");
             }
         }
+    }
+
+    $fareTypeColumn = $pdo->query("SHOW COLUMNS FROM users LIKE 'fare_type'")->fetch(PDO::FETCH_ASSOC);
+    if ($fareTypeColumn && ($fareTypeColumn['Null'] === 'YES' || $fareTypeColumn['Default'] !== 'regular')) {
+        $pdo->exec("UPDATE users SET fare_type = 'regular' WHERE fare_type IS NULL OR fare_type = ''");
+        $pdo->exec("ALTER TABLE users MODIFY fare_type VARCHAR(20) NOT NULL DEFAULT 'regular'");
     }
 
     $pdo->exec(
@@ -169,6 +175,7 @@ try {
             route_id VARCHAR(40) NOT NULL,
             plate_number VARCHAR(20) NOT NULL UNIQUE,
             is_online TINYINT(1) NOT NULL DEFAULT 1,
+            is_default TINYINT(1) NOT NULL DEFAULT 0,
             INDEX idx_route_buses_route (route_id)
         )"
     );
@@ -177,11 +184,39 @@ try {
     if (!in_array('is_online', $routeBusColumns, true)) {
         $pdo->exec("ALTER TABLE route_buses ADD is_online TINYINT(1) NOT NULL DEFAULT 1");
     }
+    if (!in_array('is_default', $routeBusColumns, true)) {
+        $pdo->exec("ALTER TABLE route_buses ADD is_default TINYINT(1) NOT NULL DEFAULT 0");
+    }
 
-    $routeIds = ['east-express', 'north-route', 'west-route', 'arca-south-express', 'central-route', 'night-route', 'lrt-ayala-route'];
+    $routeIds = [
+        'east-express' => 'EX',
+        'north-route' => 'NR',
+        'west-route' => 'WR',
+        'arca-south-express' => 'AS',
+        'central-route' => 'CR',
+        'night-route' => 'NT',
+        'lrt-ayala-route' => 'LRT',
+    ];
     $routeSeed = $pdo->prepare('INSERT IGNORE INTO route_operations (route_id, is_online) VALUES (?, 1)');
-    foreach ($routeIds as $routeId) {
+    $defaultBusCheck = $pdo->prepare('SELECT id FROM route_buses WHERE route_id = ? AND is_default = 1 LIMIT 1');
+    $defaultBusInsert = $pdo->prepare('INSERT INTO route_buses (route_id, plate_number, is_online, is_default) VALUES (?, ?, 1, 1)');
+    foreach ($routeIds as $routeId => $routeCode) {
         $routeSeed->execute([$routeId]);
+
+        $defaultBusCheck->execute([$routeId]);
+        if (!$defaultBusCheck->fetchColumn()) {
+            $plateNumber = $routeCode . '-DEFAULT';
+            $suffix = 2;
+            while (true) {
+                $plateCheck = $pdo->prepare('SELECT id FROM route_buses WHERE plate_number = ? LIMIT 1');
+                $plateCheck->execute([$plateNumber]);
+                if (!$plateCheck->fetchColumn()) {
+                    break;
+                }
+                $plateNumber = $routeCode . '-DEF-' . $suffix++;
+            }
+            $defaultBusInsert->execute([$routeId, $plateNumber]);
+        }
     }
 
     $adminHash = '$2y$10$2T4HLkWLX/9q9Rq4EMOlUePow9Vh8.V0CgYmS1ut/Xoo.BFvQyUr2';

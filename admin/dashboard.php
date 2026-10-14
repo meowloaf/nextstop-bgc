@@ -22,6 +22,7 @@ $rideCount = 0;
 $userCount = 0;
 $notifications = [];
 $routeBuses = [];
+$routeOperations = [];
 $adminMessage = $_SESSION['admin_message'] ?? '';
 unset($_SESSION['admin_message']);
 $reportRange = $_GET['report_range'] ?? '30';
@@ -56,8 +57,11 @@ try {
     $notifications = $notificationStmt->fetchAll(PDO::FETCH_ASSOC);
 
     $routeBuses = $pdo->query(
-        "SELECT id, route_id, plate_number, is_online FROM route_buses ORDER BY id ASC"
+        "SELECT id, route_id, plate_number, is_online, is_default FROM route_buses ORDER BY id ASC"
     )->fetchAll(PDO::FETCH_ASSOC);
+    $routeOperations = $pdo->query(
+        "SELECT route_id, is_online FROM route_operations"
+    )->fetchAll(PDO::FETCH_KEY_PAIR);
 } catch (PDOException $exception) {
     $feedbackRows = [];
     $stopRows = [];
@@ -65,6 +69,7 @@ try {
     $userCount = 0;
     $notifications = [];
     $routeBuses = [];
+    $routeOperations = [];
 }
 
 $busesByRoute = [];
@@ -109,11 +114,11 @@ if ($feedbackRows) {
 <div class="dashboard">
     <aside class="sidebar">
         <nav class="main-nav" aria-label="Main navigation">
-            <a class="nav-item" href="../dashboard.php"><span class="nav-icon" aria-hidden="true">▦</span><span>Routes &amp; Map</span></a>
-            <a class="nav-item" href="../bus-stops.php"><span class="nav-icon" aria-hidden="true">●</span><span>Bus Stops</span></a>
-            <a class="nav-item" href="../feedback.php"><span class="nav-icon" aria-hidden="true">✉</span><span>Feedback</span></a>
-            <a class="nav-item" href="../history.php"><span class="nav-icon" aria-hidden="true">↺</span><span>History</span></a>
-            <a class="nav-item admin-nav-item" href="dashboard.php"><span class="nav-icon" aria-hidden="true">⚙</span><span>Admin Panel</span></a>
+            <a class="nav-item" href="../dashboard.php"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9v11h13V9M9 20v-6h6v6"/></svg></span><span>Routes &amp; Map</span></a>
+            <a class="nav-item" href="../bus-stops.php"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="16" rx="3"/><path d="M4 12h16M7 7h.01M17 7h.01M8 22l2-3m6 3-2-3"/></svg></span><span>Bus Stops</span></a>
+            <a class="nav-item" href="../feedback.php"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H6l-3 2v-6.5A7.5 7.5 0 1 1 20 11.5Z"/><path d="M8 11h8m-8 3h5"/></svg></span><span>Feedback</span></a>
+            <a class="nav-item" href="../history.php"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2M4 5v4h4"/></svg></span><span>History</span></a>
+            <a class="nav-item admin-nav-item" href="dashboard.php"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z"/><path d="m19.4 15 .1.1 1.4 1.1-1.5 2.6-1.7-.7a8 8 0 0 1-1.6.9l-.3 1.8h-3l-.3-1.8a8 8 0 0 1-1.6-.9l-1.7.7-1.5-2.6 1.4-1.1a7 7 0 0 1 0-1.9l-1.4-1.1 1.5-2.6 1.7.7a8 8 0 0 1 1.6-.9l.3-1.8h3l.3 1.8a8 8 0 0 1 1.6.9l1.7-.7 1.5 2.6-1.4 1.1a7 7 0 0 1-.1 1.8Z"/></svg></span><span>Admin Panel</span></a>
         </nav>
     </aside>
 
@@ -254,30 +259,34 @@ if ($feedbackRows) {
             <div class="admin-forms">
                 <?php foreach ($routeLabels as $routeId => $route): ?>
                     <?php $routeBusList = $busesByRoute[$routeId] ?? []; ?>
+                    <?php $routeIsOnline = (int) ($routeOperations[$routeId] ?? 1) === 1; ?>
                     <div class="admin-toggle">
                         <div>
                             <strong><?php echo htmlspecialchars($route['name']); ?></strong>
-                            <small><?php echo htmlspecialchars($route['code']); ?> · <?php echo count($routeBusList); ?> buses</small>
+                            <small><?php echo htmlspecialchars($route['code']); ?> · <?php echo count($routeBusList); ?> buses · <?php echo $routeIsOnline ? 'Route online' : 'Route offline'; ?></small>
                         </div>
                         <div class="route-bus-list">
                             <?php foreach ($routeBusList as $busIndex => $bus): ?>
                                 <?php $busIsOnline = (int) $bus['is_online'] === 1; ?>
+                                <?php $busIsAvailable = $busIsOnline && $routeIsOnline; ?>
                                 <div class="route-bus">
-                                    <span><strong>Bus #<?php echo $busIndex + 1; ?></strong> · <?php echo htmlspecialchars($bus['plate_number']); ?></span>
+                                    <span><strong>Bus #<?php echo $busIndex + 1; ?></strong><?php echo (int) $bus['is_default'] === 1 ? ' · Default' : ''; ?> · <?php echo htmlspecialchars($bus['plate_number']); ?></span>
                                     <div class="route-bus-actions">
-                                        <span class="admin-status <?php echo $busIsOnline ? 'active' : 'inactive'; ?>"><?php echo $busIsOnline ? 'ONLINE' : 'OFFLINE'; ?></span>
+                                        <span class="admin-status <?php echo $busIsAvailable ? 'active' : 'inactive'; ?>"><?php echo !$routeIsOnline ? 'ROUTE OFFLINE' : ($busIsOnline ? 'ONLINE' : 'OFFLINE'); ?></span>
                                         <form method="POST" action="manage-bus.php">
                                             <input type="hidden" name="action" value="<?php echo $busIsOnline ? 'offline' : 'deploy'; ?>">
                                             <input type="hidden" name="bus_id" value="<?php echo (int) $bus['id']; ?>">
                                             <input type="hidden" name="route_id" value="<?php echo htmlspecialchars($routeId); ?>">
                                             <button class="route-bus-status-button <?php echo $busIsOnline ? 'admin-toggle-button--inactive' : ''; ?>" type="submit"><?php echo $busIsOnline ? 'Take offline' : 'Deploy'; ?></button>
                                         </form>
-                                        <form method="POST" action="manage-bus.php">
-                                            <input type="hidden" name="action" value="remove">
-                                            <input type="hidden" name="bus_id" value="<?php echo (int) $bus['id']; ?>">
-                                            <input type="hidden" name="route_id" value="<?php echo htmlspecialchars($routeId); ?>">
-                                            <button class="route-bus-remove-button" type="submit" aria-label="Remove bus <?php echo htmlspecialchars($bus['plate_number']); ?> from <?php echo htmlspecialchars($route['name']); ?>">Remove</button>
-                                        </form>
+                                        <?php if ((int) $bus['is_default'] !== 1): ?>
+                                            <form method="POST" action="manage-bus.php">
+                                                <input type="hidden" name="action" value="remove">
+                                                <input type="hidden" name="bus_id" value="<?php echo (int) $bus['id']; ?>">
+                                                <input type="hidden" name="route_id" value="<?php echo htmlspecialchars($routeId); ?>">
+                                                <button class="route-bus-remove-button" type="submit" aria-label="Remove bus <?php echo htmlspecialchars($bus['plate_number']); ?> from <?php echo htmlspecialchars($route['name']); ?>">Remove</button>
+                                            </form>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
                             <?php endforeach; ?>

@@ -343,6 +343,7 @@ function highlightTransferRoutes(transferPlan) {
     routes.slice(1).forEach(route => {
         if (route.line) {
             route.line.setStyle({ weight: 6, opacity: 0.9, dashArray: "" });
+            route.lineCasing.bringToFront();
             route.line.bringToFront();
         }
     });
@@ -386,10 +387,16 @@ routeWarnings.forEach(alert => {
 });
 
 routeDefinitions.forEach(route => {
+    route.lineCasing = L.polyline(route.path, {
+        color: "#ffffff",
+        weight: 10,
+        opacity: 0.9,
+        interactive: false
+    }).addTo(map);
     route.line = L.polyline(route.path, {
         color: route.color,
-        weight: 4,
-        opacity: 0.7
+        weight: 5,
+        opacity: 0.9
     }).addTo(map);
 
     (route.signals || []).forEach(signal => {
@@ -404,21 +411,40 @@ routeDefinitions.forEach(route => {
 });
 
 async function loadRoadGeometry(route) {
-    const coordinates = route.path.map(([lat, lng]) => `${lng},${lat}`).join(";");
-    const url = `https://router.project-osrm.org/route/v1/driving/${coordinates}?overview=full&geometries=geojson`;
-
     try {
-        const response = await fetch(url);
-        const result = await response.json();
-        const roadPath = result.routes?.[0]?.geometry?.coordinates;
+        const getRoadPath = async points => {
+            const coordinates = points.map(([lat, lng]) => `${lng},${lat}`).join(";");
+            const url = `https://router.project-osrm.org/route/v1/driving/${coordinates}?overview=full&geometries=geojson`;
+            const response = await fetch(url);
+            if (!response.ok) {
+                return null;
+            }
+            const result = await response.json();
+            const roadPath = result.code === "Ok" ? result.routes?.[0]?.geometry?.coordinates : null;
+            return roadPath?.length ? roadPath.map(([lng, lat]) => [lat, lng]) : null;
+        };
 
-        if (roadPath?.length) {
-            const sampleInterval = Math.max(1, Math.ceil((roadPath.length - 1) / 80));
+        let roadPath = await getRoadPath(route.path);
+        if (!roadPath) {
+            roadPath = [];
+            for (let index = 0; index < route.path.length - 1; index += 1) {
+                const roadSegment = await getRoadPath([route.path[index], route.path[index + 1]]);
+                if (roadSegment) {
+                    roadPath.push(...(roadPath.length ? roadSegment.slice(1) : roadSegment));
+                } else {
+                    roadPath.push(route.path[index + 1]);
+                }
+            }
+        }
+
+        if (roadPath.length) {
+            const sampleInterval = Math.max(1, Math.ceil((roadPath.length - 1) / 100));
             const sampledRoadPath = roadPath.filter((_, index) => index % sampleInterval === 0);
             if (sampledRoadPath[sampledRoadPath.length - 1] !== roadPath[roadPath.length - 1]) {
                 sampledRoadPath.push(roadPath[roadPath.length - 1]);
             }
-            route.path = sampledRoadPath.map(([lng, lat]) => [lat, lng]);
+            route.path = sampledRoadPath;
+            route.lineCasing.setLatLngs(route.path);
             route.line.setLatLngs(route.path);
         }
     } catch (error) {
@@ -834,6 +860,7 @@ function highlightRoute(route) {
     });
 
     if (route?.line) {
+        route.lineCasing.bringToFront();
         route.line.bringToFront();
     }
 }
@@ -1083,7 +1110,7 @@ fleet = routeBuses
     .filter(bus => Number(bus.is_online) === 1)
     .map(bus => {
         const route = routeDefinitions.find(candidate => candidate.id === bus.route_id);
-        if (!route) {
+        if (!route || !routeIsOnline(route)) {
             return null;
         }
 
@@ -1097,59 +1124,6 @@ fleet = routeBuses
 renderLiveStatus();
 
 routeDefinitions.forEach(loadRoadGeometry);
-
-let simulationTimer = null;
-let simulationSpeed = 1000;
-
-function startSimulation() {
-    if (simulationTimer) {
-        return;
-    }
-
-    tripStatus.textContent = "Buses are moving along their routes.";
-    tripStatus.className = "trip-status is-active";
-    simulationTimer = setInterval(moveFleet, simulationSpeed);
-}
-
-function pauseSimulation() {
-    if (!simulationTimer) {
-        return;
-    }
-
-    clearInterval(simulationTimer);
-    simulationTimer = null;
-    tripStatus.textContent = "Bus simulation paused.";
-    tripStatus.className = "trip-status";
-}
-
-function resetSimulation() {
-    clearInterval(simulationTimer);
-    simulationTimer = null;
-
-    fleet.forEach(bus => {
-        bus.position = 0;
-        bus.waitTicks = 0;
-        bus.marker.setLatLng(bus.route.path[0]);
-    });
-
-    refreshRouteDisplays();
-    tripStatus.textContent = "Route simulation reset.";
-    tripStatus.className = "trip-status";
-}
-
-function changeSpeed() {
-    const speedSelect = document.getElementById("speed");
-    if (!speedSelect) {
-        return;
-    }
-
-    simulationSpeed = Number(speedSelect.value) || 1000;
-
-    if (simulationTimer) {
-        clearInterval(simulationTimer);
-        simulationTimer = setInterval(moveFleet, simulationSpeed);
-    }
-}
 
 function isNear(first, second) {
     return Math.abs(first[0] - second[0]) < 0.0008 && Math.abs(first[1] - second[1]) < 0.0008;
@@ -1467,4 +1441,4 @@ if (routeWarnings.length) {
     tripStatus.className = "trip-status is-warning";
 }
 
-startSimulation();
+setInterval(moveFleet, 1000);
